@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Transactions History{% endblock %}
+{% block body %}
+<!--<div class="row mb-3">-->
+<!--  <div class="col-lg-2 col-md-2 col-sm-12">-->
+<!--    <button id="exportCSV" class="btn btn-success">Export All Data</button>-->
+
+<!--  </div>-->
+<!--</div>-->
+<div class="row">
+  <div id="exportContainer"></div>
+<table id="transactionsTable" class="display">
+  <thead>
+    <tr>
+      <th>Transaction ID</th>
+      <th>Date & Time</th>
+      <th>Type</th>
+      <th>Amount</th>
+      <th>Currency</th>
+      <th>From Account</th>
+      <th>To Account</th>
+      <th>Platform</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for transaction in transactions_data['data'] %}
+      <tr>
+        <!-- Transaction ID -->
+        <td>{{ transaction['transactionId'] if transaction['transactionId'] else 'N/A' }}</td>
+
+        <!-- Date & Time -->
+        <td>{{ transaction['createTime'] if transaction['createTime'] else 'N/A' }}</td>
+
+        <!-- Type -->
+        <td>{{ transaction['type'] if transaction['type'] else 'N/A' }}</td>
+
+        <!-- Amount -->
+        <td>{{ transaction['creditDetails']['amount'] }}</td>
+
+        <!-- Currency -->
+        <td>
+          {% if transaction['creditDetails']['currency'] %}
+            {{ transaction['creditDetails']['currency']['alphabeticCode'] if transaction['creditDetails']['currency']['alphabeticCode'] else 'N/A' }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- From Account -->
+        <td>
+          {% if transaction['debitDetails'] and transaction['debitDetails']['account'] %}
+            {{ transaction['debitDetails']['account']['clientName'] }}<br/>
+            ({{ transaction['debitDetails']['account']['caption'] }}) #{{ transaction['debitDetails']['account']['accountNumber'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- To Account -->
+        <td>
+          {% if transaction['creditDetails'] and transaction['creditDetails']['account'] %}
+            {{ transaction['creditDetails']['account']['clientName'] }}<br/>
+            ({{ transaction['creditDetails']['account']['caption'] }}) {{ transaction['creditDetails']['account']['accountNumber'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- Platform -->
+        <td>
+          {% if transaction['creditDetails'] and transaction['creditDetails']['account']['platform'] %}
+            {{ transaction['creditDetails']['account']['platform']['caption'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- Status -->
+        <td>{{ transaction['status'] if transaction['status'] else 'N/A' }}</td>
+
+
+      </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+
+    </tr>
+  </tfoot>
+</table>
+
+
+</div>
+
+<script>
+      // Filter function
+      function filterCards() {
+        const filterValue = document.getElementById('filterInput').value.toLowerCase();
+        const cards = document.querySelectorAll('.card-item');
+
+        cards.forEach(card => {
+          const currency = card.getAttribute('data-currency').toLowerCase();
+          if (currency.includes(filterValue)) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
+
+      // Sort cards by balance
+      function sortCardsByBalance() {
+        const cards = Array.from(document.querySelectorAll('.card-item'));
+        cards.sort((a, b) => parseFloat(b.getAttribute('data-balance')) - parseFloat(a.getAttribute('data-balance')));
+
+        const cardContainer = document.getElementById('cardContainer');
+        cards.forEach(card => cardContainer.appendChild(card)); // Reorder the cards in DOM
+      }
+
+      // Toggle to Grid View
+      document.getElementById('gridViewBtn').addEventListener('click', () => {
+        const cardContainer = document.getElementById('cardContainer');
+        cardContainer.classList.add('row');
+        cardContainer.classList.remove('list-view');
+      });
+
+      // Toggle to List View
+      document.getElementById('cardViewBtn').addEventListener('click', () => {
+        const cardContainer = document.getElementById('cardContainer');
+        cardContainer.classList.remove('row');
+        cardContainer.classList.add('list-view');
+      });
+
+    </script>
+<script>
+    document.getElementById("exportCSV").addEventListener("click", function () {
+        fetch("/transactions/export-transactions")
+            .then(response => response.blob())  // Get the response as a Blob
+            .then(blob => {
+                let url = window.URL.createObjectURL(blob); // Create a downloadable URL
+                let a = document.createElement("a"); // Create an anchor tag
+                a.href = url;
+                a.download = "transactions.csv"; // Set the file name
+                document.body.appendChild(a);
+                a.click(); // Simulate click
+                document.body.removeChild(a);
+            })
+            .catch(error => console.error("Error exporting CSV:", error));
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,244 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Dashboard{% endblock %}
+{% block body %}
+
+<div class="row">
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-primary shadow-sm">
+        <i class="bi bi-currency-dollar"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Estimated Total Balance <a href="/wallets" target="_blank"><i class="bi bi-link-45deg"></i></a></span>
+        <h3>${{ wallets_data.totalEstBalance }}</h3>
+        <h5>₹ {{ wallets_data.inrEstBalance }} </h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-success shadow-sm">
+        <i class="bi bi-cash-coin"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Total Profit <a href="/transactions" target="_blank"><i class="bi bi-link-45deg"></i></a></span>
+        <h3>${{ transactions_data.totalProfit }}</h3>
+        <h5>₹ {{ transactions_data.totalProfitINR }} </h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-warning shadow-sm">
+        <i class="bi bi-cash-stack"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Own Profit <a href="/transactions" target="_blank"><i class="bi bi-link-45deg"></i></a></span>
+        <h3>${{ transactions_data.individualProfit }}</h3>
+        <h5>₹ {{ transactions_data.individualProfitINR }} </h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-primary shadow-sm">
+        <i class="bi bi-bar-chart-fill"></i>
+      </span>
+      <div class="info-box-content">
+       <span class="info-box-text">Partnership Earnings <a href="/team" target="_blank"><i class="bi bi-link-45deg"></i></a></span>
+        <h3>${{ transactions_data.partnershipFees }}</h3>
+        <h5>₹ {{ transactions_data.partnershipFeesINR }} </h5>
+      </div>
+    </div>
+  </div>
+
+</div> <!-- End of row -->
+
+<div class="row">
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box bg-primary">
+      <span class="info-box-icon text-bg-primary">
+        <i class="bi bi-arrow-up-right"></i>
+      </span>
+      <div class="info-box-content text-white">
+        <span class="info-box-text">Gross Profit Return</span>
+        <h3>{{ transactions_data.totalReturns }}<small class="text-white opacity-75">%</small></h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box bg-success">
+      <span class="info-box-icon text-bg-success">
+        <i class="bi bi-arrow-clockwise"></i>
+      </span>
+      <div class="info-box-content text-white">
+        <span class="info-box-text">Net Profit Returns</span>
+        <h3>{{ transactions_data.individualReturns }}<small class="text-white opacity-75">%</small></h3>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box bg-warning">
+      <span class="info-box-icon text-bg-warning">
+        <i class="bi bi-calendar4-week"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Annualized Net Return</span>
+        <h3>{{ transactions_data.annualReturns }}<small class="text-muted">%</small></h3>
+      </div>
+    </div>
+  </div>
+
+<!--  <div class="col-lg-3 col-md-3">-->
+<!--    <div class="info-box bg-info">-->
+<!--      <span class="info-box-icon text-bg-info">-->
+<!--        <i class="bi bi-bank text-white"></i>-->
+<!--      </span>-->
+<!--      <div class="info-box-content text-white">-->
+<!--        <span class="info-box-text">Net CAGR</span>-->
+<!--        <h3>{{ transactions_data.cagr }}<small class="text-white opacity-75">%</small></h3>-->
+
+<!--      </div>-->
+<!--    </div>-->
+<!--  </div>-->
+
+</div> <!-- End of row -->
+
+<div class="row">
+  <div class="col-lg-6">
+    <canvas id="profitBreakdownChart"></canvas>
+  </div>
+  <div class="col-lg-6">
+    <canvas id="profitOverTimeChart"></canvas>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-12">
+    <canvas id="monthlyProfitBreakdownChart"></canvas>
+  </div>
+<!--  <div class="col-lg-6">-->
+<!--    <canvas id="feeDistributionChart"></canvas>-->
+<!--  </div>-->
+</div>
+
+<!--<div class="row">-->
+<!--  <div class="col-lg-6">-->
+<!--    <canvas id="transactionTypeChart"></canvas>-->
+<!--  </div>-->
+<!--  <div class="col-lg-6">-->
+<!--    <canvas id="accountEarningsChart"></canvas>-->
+<!--  </div>-->
+<!--</div>-->
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+  const transactions = {{ transactions_data | tojson }};
+
+  function processTransactions(transactions) {
+    const profitTypes = { "Net Profit": 0, "Partnership Fees": 0 }; // Renamed Performance Fees
+    const monthlyProfits = {};
+    const monthlyBreakdown = { "Net Profit": {}, "Partnership Fees": {} };
+    const feeDistribution = {};
+    const transactionTypeCount = {};
+    const accountEarnings = {};
+
+    transactions.data.forEach(tx => {
+      const amount = parseFloat(tx.creditDetails.amount);
+      const date = new Date(tx.createTime);
+      const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+
+      if (tx.type === "Performance Fees" || tx.type === "Partnership Fees") {
+        const profitKey = tx.type === "Performance Fees" ? "Net Profit" : tx.type; // Rename dynamically
+        profitTypes[profitKey] += amount;
+        monthlyProfits[monthKey] = (monthlyProfits[monthKey] || 0) + amount;
+        monthlyBreakdown[profitKey][monthKey] = (monthlyBreakdown[profitKey][monthKey] || 0) + amount;
+        accountEarnings[tx.creditDetails.account.accountNumber] = (accountEarnings[tx.creditDetails.account.accountNumber] || 0) + amount;
+      }
+
+      if (tx.type === "fees") {
+        feeDistribution[tx.creditDetails.account.accountNumber] = (feeDistribution[tx.creditDetails.account.accountNumber] || 0) + amount;
+      }
+
+      transactionTypeCount[tx.type] = (transactionTypeCount[tx.type] || 0) + 1;
+    });
+
+    return { profitTypes, monthlyProfits, monthlyBreakdown, feeDistribution, transactionTypeCount, accountEarnings };
+  }
+
+  const { profitTypes, monthlyProfits, monthlyBreakdown, feeDistribution, transactionTypeCount, accountEarnings } = processTransactions(transactions);
+
+  function createChart(ctx, type, data, options) {
+    new Chart(ctx, { type, data, options });
+  }
+
+  createChart(document.getElementById("profitBreakdownChart"), "pie", {
+    labels: Object.keys(profitTypes),
+    datasets: [{ data: Object.values(profitTypes), backgroundColor: ["#4CAF50", "#FFC107"] }]
+  });
+
+  const sortedMonths = Object.keys(monthlyProfits).sort((a, b) => new Date(a) - new Date(b));
+  const sortedProfits = sortedMonths.map(month => monthlyProfits[month]);
+
+  createChart(document.getElementById("profitOverTimeChart"), "line", {
+    labels: sortedMonths,
+    datasets: [{
+      label: "Total Profit",
+      data: sortedProfits,
+      borderColor: "#2196F3",
+      fill: false
+    }]
+  });
+
+  // Extract and sort dates
+  const sortedMonths2 = Object.keys(monthlyBreakdown["Net Profit"])
+    .sort((a, b) => new Date(a) - new Date(b));
+
+  // Format dates as "MMM'YY" (e.g., Dec'24, Jan'25)
+  const formattedLabels2 = sortedMonths2.map(date =>
+    new Date(date).toLocaleDateString("en-US", { month: "short", year: "2-digit" }).replace(" ", "'")
+  );
+
+  // Retrieve corresponding values using the original keys
+  const netProfitData = sortedMonths2.map(date => monthlyBreakdown["Net Profit"][date] || 0);
+  const partnershipFees2 = sortedMonths2.map(date => monthlyBreakdown["Partnership Fees"][date] || 0);
+
+  createChart(document.getElementById("monthlyProfitBreakdownChart"), "bar", {
+    labels: formattedLabels2,
+    datasets: [
+      { label: "Net Profit", data: netProfitData, backgroundColor: "#FF5722" },
+      { label: "Partnership Fees", data: partnershipFees2, backgroundColor: "#8BC34A" }
+    ]
+  });
+
+  createChart(document.getElementById("feeDistributionChart"), "bar", {
+    labels: Object.keys(feeDistribution),
+    datasets: [{ label: "Fees Paid", data: Object.values(feeDistribution), backgroundColor: "#9C27B0" }]
+  });
+
+  createChart(document.getElementById("transactionTypeChart"), "bar", {
+    labels: Object.keys(transactionTypeCount),
+    datasets: [{ label: "Transaction Count", data: Object.values(transactionTypeCount), backgroundColor: "#3F51B5" }]
+  });
+
+  createChart(document.getElementById("accountEarningsChart"), "bar", {
+    labels: Object.keys(accountEarnings),
+    datasets: [{ label: "Earnings", data: Object.values(accountEarnings), backgroundColor: "#009688" }]
+  });
+});
+
+</script>
+{% endblock %}

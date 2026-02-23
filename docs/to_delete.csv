@@ -1,0 +1,40 @@
+client_id,client_name,client_email,pamm_account_id,pamm_account_number,pamm_name,balance,available_balance
+1,Rohit  Gholap,metarohit@gmail.com,401,10119,Rohit Gholap,103.8,103.8
+1,Rohit  Gholap,metarohit@gmail.com,533,10185,Rohit Gholap,1500,1500
+1,Rohit  Gholap,metarohit@gmail.com,534,10186,Rohit Gholap,1000,1000
+1,Rohit  Gholap,metarohit@gmail.com,543,10194,Rohit Gholap,2.67,2.67
+2,test  test,prerith.mally@b2broker.com,400,10118,test test,0,0
+2,test  test,prerith.mally@b2broker.com,1006,10565,test test,0,0
+2,test  test,prerith.mally@b2broker.com,1007,10566,test test,0,0
+2,test  test,prerith.mally@b2broker.com,1008,10567,test test,0,0
+2,test  test,prerith.mally@b2broker.com,1009,10568,test test,0,0
+2,test  test,prerith.mally@b2broker.com,1010,10569,test test,0,0
+2,test  test,prerith.mally@b2broker.com,1011,10570,test test,0,0
+2,test  test,prerith.mally@b2broker.com,1012,10573,test test,0,0
+9,Master  Account,dipakgore25@gmail.com,1031,10589,Master Account,190351.79,190351.79
+9,Master  Account,dipakgore25@gmail.com,1082,10622,Master Account,30000,30000
+9,Master  Account,dipakgore25@gmail.com,1765,11041,Master Account,79618.17,79618.17
+9,Master  Account,dipakgore25@gmail.com,1766,11042,Master Account,79618.17,79618.17
+10,vikas  mhaske,viky.mask@gmail.com,1215,10708,vikas mhaske,5.27,5.27
+10,vikas  mhaske,viky.mask@gmail.com,1216,10709,vikas mhaske,173.65,173.65
+38,Rohit  One,metarohit+1@gmail.com,535,10187,Rohit One,500,500
+38,Rohit  One,metarohit+1@gmail.com,1004,10563,Rohit One,2343.39,2343.39
+38,Rohit  One,metarohit+1@gmail.com,1018,10580,Rohit One,1615.07,1615.07
+58,Monitoring  Monitoring,support-b2copy@b2broker.com,1594,10946,Monitoring Monitoring,0,0
+58,Monitoring  Monitoring,support-b2copy@b2broker.com,1595,10947,Monitoring Monitoring,0,0
+58,Monitoring  Monitoring,support-b2copy@b2broker.com,1596,10948,Monitoring Monitoring,0,0
+98,Srinath Veershetty  Hegne,srinathvhegne@gmail.com,1792,11056,srinath hegne,0,0
+119,RNFX  ACADEMY,rnfxacademy5@gmail.com,537,10189,RNFX ACADEMY,0,0
+119,RNFX  ACADEMY,rnfxacademy5@gmail.com,538,10190,RNFX ACADEMY,0,0
+119,RNFX  ACADEMY,rnfxacademy5@gmail.com,541,10192,RNFX ACADEMY,2.67,2.67
+119,RNFX  ACADEMY,rnfxacademy5@gmail.com,542,10193,RNFX ACADEMY,0,0
+166,Prashant  LATPATE,prashantal2751@gmail.com,651,10272,Prashant LATPATE,0,0
+166,Prashant  LATPATE,prashantal2751@gmail.com,661,10280,Prashant LATPATE,0,0
+166,Prashant  LATPATE,prashantal2751@gmail.com,662,10281,Prashant LATPATE,0,0
+414,Siddharth  Karkhanis,skarkhanis95@gmail.com,1307,10762,Siddharth Karkhanis,17.46,17.46
+451,Prashant  latpate,prashantashoklatpate@gmail.com,1384,10804,Prashant latpate,0,0
+451,Prashant  latpate,prashantashoklatpate@gmail.com,1385,10805,Prashant latpate,0,0
+451,Prashant  latpate,prashantashoklatpate@gmail.com,1411,10819,Prashant latpate,0,0
+1279,Kavita  Deepakrao Bhosale Patil,shubhambarkade@gmail.com,3047,11767,Kavita Deepakrao Bhosale Patil,0,0
+1279,Kavita  Deepakrao Bhosale Patil,shubhambarkade@gmail.com,3048,,Kavita Deepakrao Bhosale Patil,0,0
+1303,Nemichand  Murlidhar Ghodake,ghodakenemichand0707@gmail.com,3096,,Nemichand Murlidhar Ghodake,0,0

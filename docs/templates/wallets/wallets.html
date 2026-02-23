@@ -1,0 +1,245 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Wallets{% endblock %}
+{% block body %}
+<div class="row">
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-primary shadow-sm">
+        <i class="bi bi-currency-dollar"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Estimated Total Balance</span>
+        <h3>${{ wallets_data.totalEstBalance }}</h3>
+<!--        <h5>₹ {{ wallets_data.inrEstBalance }} <small class="text-muted">@INR {{ wallets_data.conversionRate }}</small></h5>-->
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-success shadow-sm">
+        <i class="bi bi-cash-coin"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Total Profit</span>
+        <h3>${{ transactions_data.totalProfit }}</h3>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-warning shadow-sm">
+        <i class="bi bi-cash-stack"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Individual Profit</span>
+        <h3>${{ transactions_data.individualProfit }}</h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-3">
+    <div class="info-box">
+      <span class="info-box-icon text-bg-primary shadow-sm">
+        <i class="bi bi-bar-chart-fill"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Partnership Earnings</span>
+        <h3>${{ transactions_data.partnershipFees }}</h3>
+      </div>
+    </div>
+  </div>
+
+</div> <!-- End of row -->
+
+<!-- Start of the next container -->
+<div class="container-fluid mt-5">
+  <!-- Filter Input and View Toggle -->
+  <div class="col-lg-12 col-md-12 col-sm-12 d-flex justify-content-between align-items-center mb-4">
+  <!-- Search Bar (aligned to the left) -->
+  <input id="filterInput" type="text" class="form-control w-75" placeholder="Search by Name" onkeyup="filterCards()">
+
+  <!-- Icons (aligned to the right) -->
+  <div class="d-flex">
+    <a id="gridViewBtn" href="javascript:void(0);" class="text-primary me-3">
+      <i class="bi bi-grid" style="font-size: 1.5rem;"></i> <!-- Grid View Icon -->
+    </a>
+    <a id="cardViewBtn" href="javascript:void(0);" class="text-secondary">
+      <i class="bi bi-card-text" style="font-size: 1.5rem;"></i> <!-- Card View Icon -->
+    </a>
+  </div>
+</div>
+
+  <!-- Card Container -->
+  <div class="row" id="cardContainer">
+    {% for wallet in wallets_data.data %}
+    <div class="col-12 col-md-4 card-item" data-currency="{{ wallet.caption }}" data-id="{{ wallet.accountNumber }}" data-balance="{{ wallet.statement.currentBalance }}">
+      <div class="card card-success card-outline mb-4">
+        <div class="card-header">
+          <div class="card-title d-flex justify-content-between w-100">
+            <div>
+              <span class="dollar-sign me-3">$</span>{{ wallet.caption }}
+            </div>
+            <div class="float-end">
+              ID: {{ wallet.accountNumber }}
+            </div>
+          </div>
+        </div>
+        <form>
+          <div class="card-body">
+            <div class="mb-3">
+              <h2>${{ wallet.statement.currentBalance }}</h2>
+              <small class="text-muted">Current Balance</small>
+            </div>
+            <div class="mb-3">
+              <div class="d-flex justify-content-between w-100">
+                <h4>${{ wallet.statement.availableBalance }}</h4><h4>${{ wallet.statement.hold }}</h4>
+              </div>
+              <div class="d-flex justify-content-between w-100">
+                <small class="text-muted">Available Balance</small>
+                <small class="text-muted">On Hold</small>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <h5><span class="badge bg-secondary">{{ wallet.platform.caption }}</span>  <span class="badge bg-secondary">{{ wallet.group.name }}</span></h5>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<h4>Transactions</h4>
+<div class="row">
+<table id="transactionsTable" class="display">
+  <thead>
+    <tr>
+      <th>Transaction ID</th>
+      <th>Date & Time</th>
+      <th>Type</th>
+      <th>Amount</th>
+      <th>Currency</th>
+      <th>From Account</th>
+      <th>To Account</th>
+      <th>Platform</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for transaction in transactions_data['data'] %}
+      <tr>
+        <!-- Transaction ID -->
+        <td>{{ transaction['transactionId'] if transaction['transactionId'] else 'N/A' }}</td>
+
+        <!-- Date & Time -->
+        <td>{{ transaction['createTime'] if transaction['createTime'] else 'N/A' }}</td>
+
+        <!-- Type -->
+        <td>{{ transaction['type'] if transaction['type'] else 'N/A' }}</td>
+
+        <!-- Amount -->
+        <td>{{ transaction['creditDetails']['amount'] }}</td>
+
+        <!-- Currency -->
+        <td>
+          {% if transaction['creditDetails']['currency'] %}
+            {{ transaction['creditDetails']['currency']['alphabeticCode'] if transaction['creditDetails']['currency']['alphabeticCode'] else 'N/A' }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- From Account -->
+        <td>
+          {% if transaction['debitDetails'] and transaction['debitDetails']['account'] %}
+            {{ transaction['debitDetails']['account']['clientName'] }}<br/>
+            ({{ transaction['debitDetails']['account']['caption'] }}) #{{ transaction['debitDetails']['account']['accountNumber'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- To Account -->
+        <td>
+          {% if transaction['creditDetails'] and transaction['creditDetails']['account'] %}
+            {{ transaction['creditDetails']['account']['clientName'] }}<br/>
+            ({{ transaction['creditDetails']['account']['caption'] }}) {{ transaction['creditDetails']['account']['accountNumber'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- Platform -->
+        <td>
+          {% if transaction['creditDetails'] and transaction['creditDetails']['account']['platform'] %}
+            {{ transaction['creditDetails']['account']['platform']['caption'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- Status -->
+        <td>{{ transaction['status'] if transaction['status'] else 'N/A' }}</td>
+
+
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+</div>
+
+<script>
+      // Filter function
+      function filterCards() {
+        const filterValue = document.getElementById('filterInput').value.toLowerCase();
+        const cards = document.querySelectorAll('.card-item');
+
+        cards.forEach(card => {
+          const currency = card.getAttribute('data-currency').toLowerCase();
+          if (currency.includes(filterValue)) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
+
+      // Sort cards by balance
+      function sortCardsByBalance() {
+        const cards = Array.from(document.querySelectorAll('.card-item'));
+        cards.sort((a, b) => parseFloat(b.getAttribute('data-balance')) - parseFloat(a.getAttribute('data-balance')));
+
+        const cardContainer = document.getElementById('cardContainer');
+        cards.forEach(card => cardContainer.appendChild(card)); // Reorder the cards in DOM
+      }
+
+      // Toggle to Grid View
+      document.getElementById('gridViewBtn').addEventListener('click', () => {
+        const cardContainer = document.getElementById('cardContainer');
+        cardContainer.classList.add('row');
+        cardContainer.classList.remove('list-view');
+      });
+
+      // Toggle to List View
+      document.getElementById('cardViewBtn').addEventListener('click', () => {
+        const cardContainer = document.getElementById('cardContainer');
+        cardContainer.classList.remove('row');
+        cardContainer.classList.add('list-view');
+      });
+
+    </script>
+{% endblock %}

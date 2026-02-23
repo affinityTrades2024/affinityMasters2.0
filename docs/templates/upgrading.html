@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Upgrading{% endblock %}
+{% block notification_count %}0{% endblock %}
+{% block notification_count_total %}0{% endblock %}
+{% block notification_items %}{% endblock %}
+{% block header_profile_name %}{% if profile_data and profile_data.get('info') %}{{ profile_data.info.givenName }} {{ profile_data.info.familyName }}{% else %}User{% endif %}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data.email if profile_data else '' }}{% endblock %}
+{% block page_header %}{% block upgrading_title %}Upgrading{% endblock %}{% endblock %}
+{% block body %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-8 col-md-10">
+    <div class="card card-outline card-warning shadow-sm">
+      <div class="card-header">
+        <h3 class="card-title"><i class="bi bi-tools me-2"></i>Page upgrading</h3>
+      </div>
+      <div class="card-body text-center py-5">
+        <p class="lead mb-4">This page is upgrading to a new experience. Stay tuned.</p>
+        <p class="text-muted">Contact Helpdesk if you need urgent assistance.</p>
+        <a href="/dashboard" class="btn btn-primary mt-3"><i class="bi bi-house me-1"></i> Back to Dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

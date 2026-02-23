@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Profile{% endblock %}
+{% block body %}
+<div class="col-md-8 col-lg-8 col-sm-6">
+    <h5>Profile Info</h5>
+<div class="row">
+<table class="table">
+    <tbody>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">First Name</td>
+          <td style="width: 80%">{{ profile_data['info']['givenName'] }}</td>
+        </tr>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">Last Name</td>
+          <td style="width: 80%">{{ profile_data['info']['familyName'] }}</td>
+        </tr>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">Country of Residence</td>
+          <td style="width: 80%">{{ profile_data['country_code'] | default('-') }}</td>
+        </tr>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">Date of Birth</td>
+          <td style="width: 80%">{{ profile_data['info']['birthday'] | format_date }}</td>
+        </tr>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">Phone Number</td>
+          <td style="width: 80%">{{ profile_data['phone']['phone'] | default('-') }}</td>
+        </tr>
+    </tbody>
+</table>
+</div>
+<h5>Account</h5>
+<div class="row">
+<table class="table">
+    <tbody>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">ID</td>
+          <td style="width: 80%" id="client-id">{{ profile_data['id'] | default('-') }}</td>
+        </tr>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">Email</td>
+          <td style="width: 80%">{{ profile_data['email'] | default('-') }}</td>
+        </tr>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">Nickname</td>
+          <td style="width: 80%">
+              <span id="nickname-display">{{ profile_data['nickname'] | default('-') }}</span>
+               <input type="text" id="nickname-input" value="{{ profile_data['nickname'] | default('-') }}" style="display: none; width: 70%;">
+                <!-- Action buttons: Pencil, Tick, and Cross -->
+                <i class="bi bi-pencil" id="edit-icon" onclick="enableEditing()" style="cursor: pointer;"></i>
+                <i class="bi bi-check2" id="submit-icon" onclick="submitNickname()" style="display: none; cursor: pointer; color: green;"></i>
+                <i class="bi bi-x" id="cancel-icon" onclick="cancelEditing()" style="display: none; cursor: pointer; color: red;"></i>
+          </td>
+        </tr>
+    </tbody>
+</table>
+</div>
+<h5>Other</h5>
+<div class="row">
+<table class="table">
+    <tbody>
+        <tr style="margin-bottom: 3rem;">
+          <td style="width: 20%">Communication Language</td>
+          <td style="width: 80%">English</td>
+        </tr>
+
+    </tbody>
+</table>
+</div>
+</div>
+<script>
+    function enableEditing() {
+    // Hide display text and pencil icon
+    document.getElementById("nickname-display").style.display = "none";
+    document.getElementById("edit-icon").style.display = "none";
+
+    // Show input field and action buttons
+    document.getElementById("nickname-input").style.display = "inline-block";
+    document.getElementById("submit-icon").style.display = "inline-block";
+    document.getElementById("cancel-icon").style.display = "inline-block";
+}
+
+function cancelEditing() {
+    // Restore original value
+    const originalValue = document.getElementById("nickname-display").textContent;
+    document.getElementById("nickname-input").value = originalValue;
+
+    // Hide input field and action buttons
+    document.getElementById("nickname-input").style.display = "none";
+    document.getElementById("submit-icon").style.display = "none";
+    document.getElementById("cancel-icon").style.display = "none";
+
+    // Show display text and pencil icon
+    document.getElementById("nickname-display").style.display = "inline-block";
+    document.getElementById("edit-icon").style.display = "inline-block";
+}
+
+function submitNickname() {
+    const newNickname = document.getElementById("nickname-input").value;
+    const clientId = document.getElementById("client-id").innerText;
+
+
+    fetch("/profile/update-nick-name", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ nickname: newNickname, clientid: clientId }),
+    })
+    .then(response => {
+        if (response.ok) {
+            alert("Nickname updated successfully");
+            location.reload(); // Refresh the page
+        } else {
+            alert("Failed to update nickname.");
+        }
+    })
+    .catch(error => console.error("Error:", error));
+}
+
+</script>
+{% endblock %}

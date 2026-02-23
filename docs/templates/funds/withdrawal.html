@@ -1,0 +1,565 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Withdrawal{% endblock %}
+{% block body %}
+<h5>From</h5>
+<form action="{{ url_for('funds.submit_deposit') }}" method="post">
+  <div class="col-md-4">
+    <label for="accountNumber" class="form-label">Account</label>
+    <select id="accountNumber" name="accountNumber" class="form-select">
+      <option value="">Select Account</option>
+      <!-- Options will be dynamically populated -->
+    </select>
+  </div>
+  <br />
+  <h5>Using</h5>
+  <div class="row">
+    <div class="col-md-4" id="currencyContainer" hidden>
+      <label for="currency" class="form-label">Currency</label>
+      <select id="currency" name="currency" class="form-select">
+        <option value="">Select Currency</option>
+        <!-- Options dynamically populated -->
+      </select>
+      <div id="rateInfo" class="form-text"></div>
+    </div>
+    <div class="col-md-4" id="paymentMethodContainer" hidden>
+      <label for="paymentMethod" class="form-label">Payment Method</label>
+      <select id="paymentMethod" name="paymentMethod" class="form-select">
+        <option value="">Select Payment Method</option>
+        <!-- Options dynamically populated -->
+      </select>
+    </div>
+  </div>
+  <br>
+  <div class="row" id="amountContainer" hidden>
+    <h5>Indicative Amount</h5>
+    <p>Use these fields to check current rates for deposit. Commission depends on blockchain.</p>
+    <div class="col-md-4">
+      <label for="toPayAmount" class="form-label">To Pay</label>
+      <input id="toPayAmount" name="toPayAmount" type="text" class="form-control" placeholder="USD: Enter Amount to Pay">
+        <div class="invalid-feedback" id="toPayAmount-error"></div>
+    </div>
+    <div class="col-md-4">
+      <label for="toGetAmount" class="form-label">To Get</label>
+      <input id="toGetAmount" name="toGetAmount" type="text" class="form-control" placeholder="INR: Amount to Get" readonly>
+         <div class="invalid-feedback" id="toGetAmount-error"></div>
+    </div>
+  </div>
+  <br>
+  <div class="row" id="transferContainer" hidden>
+    <h5>Time to Fund</h5>
+    <p>Depending upon blockchain.</p>
+    <hr class="mb-5" />
+    <div class="col-md-4">
+      <label for="accountHolderName"  class="form-label">Account Holder Name</label>
+      <input id="accountHolderName" name="accountHolderName" type="text" class="form-control" placeholder="Enter Account Holder Name">
+        <div class="invalid-feedback" id="accountHolderName-error"></div>
+    </div>
+    <div class="col-md-4">
+      <label for="bankName" class="form-label">Bank Name</label>
+      <input id="bankName" name="bankName" type="text" class="form-control" placeholder="Enter Bank Name">
+        <div class="invalid-feedback" id="bankName-error"></div>
+    </div>
+    <div class="col-md-4">
+      <label for="bankAccountNumber" class="form-label">Account Number</label>
+      <input id="bankAccountNumber" name="bankAccountNumber" type="text" class="form-control" placeholder="Enter Bank Account Number">
+        <div class="invalid-feedback" id="bankAccountNumber-error"></div>
+    </div>
+    <div class="col-md-4">
+      <label for="bankIFSCCode" class="form-label">IFSC</label>
+      <input id="bankIFSCCode" name="bankIFSCCode" type="text" class="form-control" placeholder="Enter IFSC Code">
+        <div class="invalid-feedback" id="bankIFSCCode-error"></div>
+    </div>
+  </div>
+  <div class="row mt-3">
+    <div class="col-md-2">
+      <button type="button" id="submitBtn" class="btn btn-success" disabled>Submit Request</button>
+    </div>
+  </div>
+
+</form>
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmModalLabel">Confirm Withdraw Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table">
+            <tbody>
+                <tr>
+                    <th>From</th>
+                    <td id="cnfModalFromAccount"></td>
+                </tr>
+                <tr>
+                    <th>Method</th>
+                    <td id="cnfModalMethod"></td>
+                </tr>
+                <tr>
+                    <th>Withdraw Amount</th>
+                    <td id="cnfModalWithdrawAmt"></td>
+                </tr>
+                <tr>
+                    <th>Commission</th>
+                    <td id="cnfModalCommission"></td>
+                </tr>
+                <tr>
+                    <th>Final Amount in Wallet Currency</th>
+                    <td id="cnfModalFinalAmount"></td>
+                </tr>
+                <tr>
+                    <th>Rate</th>
+                    <td id="cnfModalRate"></td>
+                </tr>
+                <tr>
+                    <th>Final Amount in Receipt Currency</th>
+                    <td id="cnfModalFinalAmtReceiptCurrency"></td>
+                </tr>
+                <tr>
+                    <th>Account Holder Name</th>
+                    <td id="cnfModalAccountHolderName"></td>
+                </tr>
+                <tr>
+                    <th>Bank Name</th>
+                    <td id="cnfModalBankName"></td>
+                </tr>
+                <tr>
+                    <th>Account Number</th>
+                    <td id="cnfModalAccountNumber"></td>
+                </tr>
+                <tr>
+                    <th>IFSC</th>
+                    <td id="cnfModalIFSC"></td>
+                </tr>
+
+          </table>
+          <p>Please Ensure All Details Are Correct</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" id="confirmBtn" class="btn btn-primary">Confirm</button>
+        </div>
+      </div>
+    </div>
+</div>
+
+<div class="modal fade" id="otpModal" tabindex="-1" aria-labelledby="otpModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="otpModalLabel">OTP Verification</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Please enter verification code sent to your email address</p>
+                    <input type="hidden" id="hiddenFormId" />
+                    <div class="otp-container">
+                        <input type="text" maxlength="1" class="otp-input" id="otp1" />
+                        <input type="text" maxlength="1" class="otp-input" id="otp2" />
+                        <input type="text" maxlength="1" class="otp-input" id="otp3" />
+                        <input type="text" maxlength="1" class="otp-input" id="otp4" />
+                        <input type="text" maxlength="1" class="otp-input" id="otp5" />
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="otpConfirmBtn" class="btn btn-primary">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+  // Pass deposit_data from Flask to JavaScript
+  const withdrawalData = {{ withdrawal_data|tojson }};
+  const accounts = withdrawalData.accounts;
+  const rates = withdrawalData.rates;
+  const consolidatedData = withdrawalData.consolidated;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const accountNumber = document.getElementById("accountNumber");
+    const currencyContainer = document.getElementById("currencyContainer");
+    const currency = document.getElementById("currency");
+    const paymentMethodContainer = document.getElementById("paymentMethodContainer");
+    const paymentMethod = document.getElementById("paymentMethod");
+    const rateInfo = document.getElementById("rateInfo");
+    const amountContainer = document.getElementById("amountContainer");
+    const transferContainer = document.getElementById("transferContainer");
+    const toPayAmount = document.getElementById("toPayAmount");
+    const toGetAmount = document.getElementById("toGetAmount");
+    const transferAmount = document.getElementById("transferAmount");
+
+    // Populate Account Dropdown
+    accounts.forEach(account => {
+      const option = document.createElement("option");
+      option.value = account.accountId; // Use accountId as value
+      option.textContent = `${account.name} (${account.number}) | ${account.availableBalance}`;
+      accountNumber.appendChild(option);
+    });
+
+    // Handle Account Selection
+    accountNumber.addEventListener("change", () => {
+      const selectedAccountId = parseInt(accountNumber.value, 10);
+      const selectedAccount = accounts.find(acc => acc.accountId === selectedAccountId);
+
+      if (selectedAccount) {
+        populateCurrencyDropdown(currency, selectedAccount.currencies);
+        currencyContainer.hidden = false;
+        resetPaymentMethod();
+      } else {
+        resetForm();
+      }
+    });
+
+    // Populate Currency Dropdown
+    function populateCurrencyDropdown(dropdown, currencies) {
+      dropdown.innerHTML = `<option value="">Select Currency</option>`;
+      currencies.forEach(alphabeticCode => {
+        if (consolidatedData[alphabeticCode]) {
+          const currencyDetails = consolidatedData[alphabeticCode];
+          const option = document.createElement("option");
+          option.value = currencyDetails.currency_id; // Use currency_id as value
+          option.textContent = alphabeticCode;
+          option.dataset.alphabeticCode = alphabeticCode; // Store alphabeticCode as data attribute
+          dropdown.appendChild(option);
+        }
+      });
+    }
+
+    // Handle Currency Selection
+    currency.addEventListener("change", () => {
+      const selectedCurrencyId = currency.value;
+      const selectedAlphabeticCode = currency.options[currency.selectedIndex]?.dataset?.alphabeticCode;
+
+      if (selectedCurrencyId && selectedAlphabeticCode) {
+        const currencyDetails = consolidatedData[selectedAlphabeticCode];
+        rateInfo.textContent = `1 USD = ${rates[selectedAlphabeticCode]} ${selectedAlphabeticCode}`;
+        populatePaymentMethods(paymentMethod, currencyDetails.payment_methods);
+        paymentMethodContainer.hidden = false;
+      } else {
+        resetPaymentMethod();
+      }
+    });
+
+    // Populate Payment Methods Dropdown
+    function populatePaymentMethods(dropdown, methods) {
+      dropdown.innerHTML = `<option value="">Select Payment Method</option>`;
+      methods.forEach(method => {
+        const opt = document.createElement("option");
+        opt.value = method.id; // Use payment method id as value
+        opt.textContent = method.caption;
+        dropdown.appendChild(opt);
+      });
+    }
+
+    // Handle Payment Method Selection
+    paymentMethod.addEventListener("change", () => {
+      const selectedPaymentMethod = paymentMethod.value;
+      if (selectedPaymentMethod) {
+        amountContainer.hidden = false;
+        transferContainer.hidden = false;
+      } else {
+        amountContainer.hidden = true;
+        transferContainer.hidden = true;
+      }
+    });
+
+    // Handle To Pay Amount Input
+    toPayAmount.addEventListener("input", () => {
+      const amount = parseFloat(toPayAmount.value) || 0;
+      const selectedCurrencyId = currency.value;
+      const selectedAlphabeticCode = currency.options[currency.selectedIndex]?.dataset?.alphabeticCode;
+
+      if (selectedAlphabeticCode && rates[selectedAlphabeticCode]) {
+        const rate = parseFloat(rates[selectedAlphabeticCode]);
+        const calculatedAmount = (amount * rate).toFixed(2);
+        toGetAmount.value = calculatedAmount;
+        transferAmount.value = parseFloat(toPayAmount.value) || 0;
+      } else {
+        toGetAmount.value = "";
+        transferAmount.value = "";
+      }
+    });
+
+    // Reset Form Fields
+    function resetForm() {
+      currencyContainer.hidden = true;
+      paymentMethodContainer.hidden = true;
+      amountContainer.hidden = true;
+      transferContainer.hidden = true;
+      currency.innerHTML = `<option value="">Select Currency</option>`;
+      resetPaymentMethod();
+      toPayAmount.value = "";
+      toGetAmount.value = "";
+      transferAmount.value = "";
+    }
+
+    function resetPaymentMethod() {
+      paymentMethodContainer.hidden = true;
+      paymentMethod.innerHTML = `<option value="">Select Payment Method</option>`;
+      rateInfo.textContent = "";
+      amountContainer.hidden = true;
+      transferContainer.hidden = true;
+    }
+  });
+</script>
+
+<script>
+let formId = null;  // Stored globally for later use
+
+// Fetch data when the select element changes
+document.getElementById("paymentMethod").addEventListener("change", async () => {
+  const fromAccount = document.getElementById("accountNumber");
+  const fromAccountId = fromAccount.options[fromAccount.selectedIndex].value;
+  const currency = document.getElementById("currency").value;
+  const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const paymentMethod = document.getElementById("paymentMethod").value;
+
+
+  try {
+    const response = await fetch(`/funds/get-withdrawal-form?fromAccountId=${fromAccountId}&currency=${currency}&deviceTimezone=${deviceTimezone}&paymentMethod=${paymentMethod}`);
+    const data = await response.json();
+    if(data.success){
+        formId = data.id;
+        //console.log(formId);
+    }
+    else{
+        alert("Error in External API: " + data.message);
+    }
+
+  } catch (error) {
+    alert("Error fetching data:", error);
+  }
+});
+
+
+</script>
+<script>
+    document.getElementById("submitBtn").addEventListener("click", () => {
+    const fromAccount = document.getElementById("accountNumber");
+    const fromAccountId = fromAccount.options[fromAccount.selectedIndex].value;
+    const currency = document.getElementById("currency").value;
+    const amount = document.getElementById("toPayAmount").value;
+    const paymentMethod = document.getElementById("paymentMethod").value;
+
+    fetch(`/funds/get-withdrawal-preview?fromAccountId=${fromAccountId}&currency=${currency}&amount=${amount}&paymentMethod=${paymentMethod}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showConfirmationModal(data);
+            } else {
+                alert("Transfer cannot proceed: " + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Something went wrong while processing the withdrawal request.');
+        });
+});
+
+// Function to show the confirmation modal
+function showConfirmationModal(data) {
+    const fromAccount = document.getElementById("accountNumber");
+    const fromAccountText = fromAccount.options[fromAccount.selectedIndex].textContent;
+    const currency = document.getElementById("currency").value;
+    const paymentMethod = document.getElementById("paymentMethod").options[document.getElementById("paymentMethod").selectedIndex].textContent;
+    const toPayAmount = data.amount;
+    const toGetAmount = data.destinationCurrencyAmount;
+    const accountHolderName = document.getElementById("accountHolderName").value;
+    const bankName = document.getElementById("bankName").value;
+    const bankAccountNumber = document.getElementById("bankAccountNumber").value;
+    const bankIFSCCode = document.getElementById("bankIFSCCode").value;
+    const rate = document.getElementById("rateInfo").textContent;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'), {
+        keyboard: false  // Optional: Disable closing with the keyboard
+    });
+    document.getElementById("cnfModalFromAccount").textContent = fromAccountText;
+    document.getElementById("cnfModalMethod").textContent = paymentMethod;
+    document.getElementById("cnfModalWithdrawAmt").textContent = toPayAmount;
+    document.getElementById("cnfModalCommission").textContent = data.commission;
+    document.getElementById("cnfModalFinalAmount").textContent = toPayAmount;
+    document.getElementById("cnfModalRate").textContent = rate;
+    document.getElementById("cnfModalFinalAmtReceiptCurrency").textContent = toGetAmount;
+    document.getElementById("cnfModalAccountHolderName").textContent = accountHolderName;
+    document.getElementById("cnfModalBankName").textContent = bankName;
+    document.getElementById("cnfModalAccountNumber").textContent = bankAccountNumber;
+    document.getElementById("cnfModalIFSC").textContent = bankIFSCCode;
+
+    modal.show();  // Show the modal
+
+    // Handle the Confirm button
+    document.getElementById("confirmBtn").addEventListener("click", () => {
+        const paymentMethod = document.getElementById("paymentMethod").value;
+        const fromAccount = document.getElementById("accountNumber");
+        const fromAccountId = fromAccount.options[fromAccount.selectedIndex].value;
+        const currency = document.getElementById("currency").value;
+        const otpModal = new bootstrap.Modal(document.getElementById('otpModal'), {
+            keyboard: false  // Optional: Disable closing with the keyboard
+        });
+
+        //Make the POST request to confirm the transfer
+        fetch(`/funds/confirm-withdrawal`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: formId,
+                methodId: paymentMethod,
+                accountId: fromAccountId,
+                currencyCode: currency,
+                amount: data.amount,
+                bankName: bankName,
+                accountNumber: bankAccountNumber,
+                accountHolderName: accountHolderName,
+                bankIFSCCode: bankIFSCCode
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    modal.hide();  // Hide the modal
+                    document.getElementById("hiddenFormId").value = data.id;
+                    otpModal.show();
+                } else {
+                    alert("Withdrawal failed: " + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Something went wrong while confirming the withdrawal.');
+            });
+    });
+}
+
+
+</script>
+
+<script>
+        // JavaScript to move to next input field automatically after entering a digit
+        document.querySelectorAll('.otp-input').forEach((input, index, inputs) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value.length === 1 && index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                } else if (e.target.value.length === 0 && index > 0) {
+                    inputs[index - 1].focus();
+                }
+            });
+        });
+
+    </script>
+
+<script>
+    document.getElementById("otpConfirmBtn").addEventListener("click", () => {
+    const formID = document.getElementById("hiddenFormId").value;
+    const otp1 = document.getElementById("otp1").value;
+    const otp2 = document.getElementById("otp2").value;
+    const otp3 = document.getElementById("otp3").value;
+    const otp4 = document.getElementById("otp4").value;
+    const otp5 = document.getElementById("otp5").value;
+    const otp = otp1 + otp2 + otp3 + otp4 + otp5;
+
+    fetch(`/funds/validate-withdrawal?formId=${formID}&code=${otp}`)
+    .then(response => {
+        if (response.status === 204) {
+            // For 204 No Content, no need to parse JSON, just consider it a success
+            alert("Withdrawal Request Processed Successfully!");
+            location.reload(true);  // Reload the page
+        } else {
+            // Handle the case where the status is not 204
+            alert("Something went wrong. Status code: " + response.status);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Something went wrong while processing the withdrawal request.');
+    });
+});
+</script>
+
+<script>
+    // Real-time validation function
+function validateInput() {
+    let allValid = true;
+
+    // Get available balance from the selected account
+    const fromAccount = document.getElementById("accountNumber");
+    const fromAccountId = fromAccount.options[fromAccount.selectedIndex].value;
+    const withdrawalData = {{ withdrawal_data|tojson }};
+    const accounts = withdrawalData.accounts;
+    const selectedAccount = accounts.find(account => account.accountId == fromAccountId);
+    const availableBalance = selectedAccount ? selectedAccount.availableBalance : 0;
+
+    // Validate toPayAmount (must be a number, greater than 0 and less than or equal to available balance)
+    const toPayAmount = document.getElementById("toPayAmount");
+    const toPayAmountError = document.getElementById("toPayAmount-error");
+    const toPayAmountValue = parseFloat(toPayAmount.value);
+    if (isNaN(toPayAmountValue) || toPayAmountValue <= 0 || toPayAmountValue > availableBalance) {
+      toPayAmount.classList.add("is-invalid");
+      toPayAmountError.textContent = `Amount must be greater than 0 and less than or equal to available balance (${availableBalance})`;
+      allValid = false;
+    } else {
+      toPayAmount.classList.remove("is-invalid");
+      toPayAmountError.textContent = "";
+    }
+
+    // Validate toGetAmount (must be greater than 1000)
+    const toGetAmount = document.getElementById("toGetAmount");
+    const toGetAmountError = document.getElementById("toGetAmount-error");
+    const toGetAmountValue = parseFloat(toGetAmount.value);
+    if (isNaN(toGetAmountValue) || toGetAmountValue <= 1000) {
+      toGetAmount.classList.add("is-invalid");
+      toGetAmountError.textContent = "Amount must be greater than 1000.";
+      allValid = false;
+    } else {
+      toGetAmount.classList.remove("is-invalid");
+      toGetAmountError.textContent = "";
+    }
+
+    // Validate bankAccountNumber, bankIFSCCode, bankName, accountHolderName (must not be empty)
+    const fieldsToValidate = [
+      { id: "bankAccountNumber", errorId: "bankAccountNumber-error", errorMessage: "Bank Account Number is required." },
+      { id: "bankIFSCCode", errorId: "bankIFSCCode-error", errorMessage: "Bank IFSC Code is required." },
+      { id: "bankName", errorId: "bankName-error", errorMessage: "Bank Name is required." },
+      { id: "accountHolderName", errorId: "accountHolderName-error", errorMessage: "Account Holder Name is required." }
+    ];
+
+    fieldsToValidate.forEach(field => {
+      const input = document.getElementById(field.id);
+      const errorElement = document.getElementById(field.errorId);
+      if (input.value.trim() === "") {
+        input.classList.add("is-invalid");
+        errorElement.textContent = field.errorMessage;
+        allValid = false;
+      } else {
+        input.classList.remove("is-invalid");
+        errorElement.textContent = "";
+      }
+    });
+
+    // Enable or disable the submit button based on validation
+    document.getElementById("submitBtn").disabled = !allValid;
+  }
+
+  // Add event listeners for real-time validation on the input fields
+  document.getElementById("toPayAmount").addEventListener("input", validateInput);
+  document.getElementById("toGetAmount").addEventListener("input", validateInput);
+  document.getElementById("bankAccountNumber").addEventListener("input", validateInput);
+  document.getElementById("bankIFSCCode").addEventListener("input", validateInput);
+  document.getElementById("bankName").addEventListener("input", validateInput);
+  document.getElementById("accountHolderName").addEventListener("input", validateInput);
+
+
+</script>
+
+
+{% endblock %}

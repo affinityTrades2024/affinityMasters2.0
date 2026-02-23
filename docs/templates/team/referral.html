@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}My Team{% endblock %}
+{% block body %}
+<div class="row">
+    <div class="col-md-4 col-lg-4 col-sm-12 mb-2">
+
+<!--        <label for="accountNumber" class="form-label">Account</label>-->
+        <select id="accountNumber" name="accountNumber" class="form-select">
+          <option value="">Select Account</option>
+          <!-- Options will be dynamically populated -->
+       </select>
+    </div>
+    <div class="col-md-2 col-lg-2 col-6">
+        <button id="getRefData" class="btn btn-sm btn-primary">Get Referral Data</button>
+
+    </div>
+    <div id="loadingIcon" class="spinner-border text-primary" role="status" style="display: none;">
+          <span class="sr-only">Loading...</span>
+    </div>
+    <div class="col-md-4 col-lg-4 col-sm-12 mb-2" id="level" style="display:none;">
+        Investor Level: <span id="levelName" class="badge bg-success"></span>
+    </div>
+</div>
+
+<table id="refDataTable" class="table" >
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Account Number</th>
+            <th>Name</th>
+            <th>Referral ID</th>
+            <th>Share</th>
+        </tr>
+    </thead>
+    <tbody id="refDataTableBody">
+        <!-- Data will be inserted here dynamically via JavaScript -->
+    </tbody>
+</table>
+<script>
+const accounts = {{ pamm_accounts|tojson }};
+
+document.addEventListener("DOMContentLoaded", () => {
+    const accountNumber = document.getElementById("accountNumber");
+
+    // Populate Account Dropdown
+    accounts.forEach(account => {
+      const option = document.createElement("option");
+      option.value = `${account.accountId},${account.accountNumber}`;
+      option.textContent = `${account.caption} (${account.accountNumber})`;
+      accountNumber.appendChild(option);
+    });
+});
+
+document.getElementById("getRefData").addEventListener("click", () => {
+    const pammAccount = document.getElementById("accountNumber").value;
+    const button = document.getElementById("getRefData");
+    const loadingIcon = document.getElementById("loadingIcon");
+
+    // Disable the button and show loading icon
+    button.disabled = true;
+    loadingIcon.style.display = "inline";
+
+    fetch(`/team/referral-data?accountData=${pammAccount}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Call a function to display the data
+                displayRefData(data.data);
+            } else {
+                alert("Error: " + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Something went wrong while fetching referral data.');
+        })
+        .finally(() => {
+            // Re-enable the button and hide the loading icon
+            button.disabled = false;
+            loadingIcon.style.display = "none";
+        });
+});
+
+// Function to display referral data in the table
+function displayRefData(refData) {
+    const tableBody = document.getElementById("refDataTableBody");
+    tableBody.innerHTML = ""; // Clear previous data
+
+    refData.forEach(account => {
+        const referralUrl = account.refId ? `https://www.affinitymasters.com/register?refId=${account.refId}` : null;
+
+        // If refId exists, show the link & share buttons; otherwise, show "Generate Ref ID" button
+        let refIdCellContent = account.refId
+            ? `<a href="${referralUrl}" target="_blank">${account.refId}</a>`
+            : `<button class="btn btn-sm btn-success" onclick="generateRefId(${account.id})">Generate Ref ID</button>`;
+
+        let shareButtons = account.refId
+            ? `
+                <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('${referralUrl}')" title="Copy to Clipboard"><i class="bi bi-clipboard"></i></button>&nbsp;
+                <a href="mailto:?subject=Join%20Now&body=Register%20here:%20${encodeURIComponent(referralUrl)}" target="_blank" title="Share via Email"><i class="bi bi-envelope"></i></a>&nbsp;
+                <a href="https://wa.me/?text=${encodeURIComponent('Register here: ' + referralUrl)}" target="_blank" title="Share via WhatsApp"><i class="bi bi-whatsapp"></i></a>&nbsp;
+                <a href="sms:?body=${encodeURIComponent('Register here: ' + referralUrl)}" target="_blank" title="Share via SMS"><i class="bi bi-chat-text"></i></a>
+            `
+            : '';
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${account.id}</td>
+            <td>${account.accountNumber}</td>
+            <td>${account.name}</td>
+            <td id="refId_${account.id}">${refIdCellContent}</td>
+            <td>${shareButtons}</td>
+        `;
+
+        tableBody.appendChild(row);
+    });
+}
+
+// Function to Copy the referral link to clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert("Referral link copied to clipboard!");
+    }).catch(err => {
+        console.error("Failed to copy: ", err);
+    });
+}
+// Function to generate a random referral ID and update in the database
+function generateRefId(accountId) {
+    const newRefId = generateRandomString(8); // Generate a random string
+
+    fetch(`/team/generate-refId`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: accountId, refId: newRefId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert("Referral ID Generated. Please refresh");
+            location.reload();
+        } else {
+            alert("Error: " + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to generate referral ID.');
+    });
+}
+
+// Function to generate a random referral ID
+function generateRandomString(length) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+</script>
+
+
+
+
+{% endblock %}

@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Transfer{% endblock %}
+{% block body %}
+<h5>From</h5>
+<form action="" method="post">
+    <div class="row">
+          <div class="col-md-4">
+            <label for="fromAccountNumber" class="form-label">From Account</label>
+            <select id="fromAccountNumber" name="fromAccountNumber" class="form-select">
+              <option value="">Select Account</option>
+              <!-- Options will be dynamically populated -->
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label for="toAccountNumber" class="form-label">To Account</label>
+            <select id="toAccountNumber" name="toAccountNumber" class="form-select">
+            <option value="">Select Account</option>
+          <!-- Options will be dynamically populated -->
+            </select>
+          </div>
+    </div>
+    <div class="row mt-2">
+        <div class="col-md-4">
+            <label for="transferAmount">Transfer Amount</label>
+            <input type="number" name="transferAmount" class="form-control" id="transferAmount" step="0.01" disabled placeholder="Enter amount" />
+            <br />
+<!--            <input type="range" class="form-control" id="transferAmountRange" disabled min="0" value="0" />-->
+        </div>
+    </div>
+    <div class="row mt-2">
+        <div class="col-md-2">
+            <!-- Button trigger modal -->
+            <button type="button" id="submitBtn" class="btn btn-success">
+              Submit Request
+</button>
+        </div>
+    </div>
+<!-- Bootstrap Modal for Transfer Confirmation -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmModalLabel">Confirm Transfer</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to transfer the amount?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="confirmBtn" class="btn btn-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</form>
+
+<script>
+  // Pass deposit_data from Flask to JavaScript
+  const transferData = {{ transfer_data|tojson }};
+  const accounts = transferData.accounts;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const fromAccountNumber = document.getElementById("fromAccountNumber");
+    const toAccountNumber = document.getElementById("toAccountNumber");
+    const transferAmount = document.getElementById("transferAmount");
+
+    // Function to update available accounts in the opposite dropdown based on selection
+    const updateAccountOptions = () => {
+      const selectedFromAccount = fromAccountNumber.value;
+      const selectedToAccount = toAccountNumber.value;
+
+      // Update the 'From' dropdown
+      Array.from(fromAccountNumber.options).forEach(option => {
+        if (option.value === selectedToAccount) {
+          option.disabled = true;  // Disable account already selected in the 'To' dropdown
+        } else {
+          option.disabled = false;  // Enable other options
+        }
+      });
+
+      // Update the 'To' dropdown
+      Array.from(toAccountNumber.options).forEach(option => {
+        if (option.value === selectedFromAccount) {
+          option.disabled = true;  // Disable account already selected in the 'From' dropdown
+        } else {
+          option.disabled = false;  // Enable other options
+        }
+      });
+
+      // Enable transferAmount field if both accounts are selected (and not placeholders)
+      if (selectedFromAccount && selectedToAccount && selectedFromAccount !== "" && selectedToAccount !== "") {
+        transferAmount.disabled = false;
+        updateTransferAmountFields();
+      } else {
+        transferAmount.disabled = true;
+      }
+    };
+
+
+    // Add placeholder options to both dropdowns
+    const fromPlaceholderOption = document.createElement("option");
+    fromPlaceholderOption.value = "";
+    fromPlaceholderOption.textContent = "Select From Account";
+    fromPlaceholderOption.disabled = true;
+    fromPlaceholderOption.selected = true;
+
+    const toPlaceholderOption = document.createElement("option");
+    toPlaceholderOption.value = "";
+    toPlaceholderOption.textContent = "Select To Account";
+    toPlaceholderOption.disabled = true;
+    toPlaceholderOption.selected = true;
+
+    fromAccountNumber.appendChild(fromPlaceholderOption);
+    toAccountNumber.appendChild(toPlaceholderOption);
+
+    // Populate From Account Dropdown
+    accounts.forEach(account => {
+      const option = document.createElement("option");
+      option.value = account.accountId; // Use accountId as value
+      option.textContent = `${account.type} (${account.accountNumber}) | Available Balance: ${account.availableBalance}`;
+      fromAccountNumber.appendChild(option);
+    });
+
+    // Populate To Account Dropdown
+    accounts.forEach(account => {
+      const option = document.createElement("option");
+      option.value = account.accountId; // Use accountId as value
+      option.textContent = `${account.type} (${account.accountNumber}) | Available Balance: ${account.availableBalance}`;
+      toAccountNumber.appendChild(option);
+    });
+
+    // Event listeners for change on both dropdowns
+    fromAccountNumber.addEventListener("change", updateAccountOptions);
+    toAccountNumber.addEventListener("change", updateAccountOptions);
+    const textInput = document.getElementById("transferAmount");
+
+
+    // Event listener for transferAmount validation and update
+    transferAmount.addEventListener("input", () => {
+
+      const selectedFromAccountId = parseInt(fromAccountNumber.value);
+
+      const selectedFromAccount = accounts.find(account => account.accountId === selectedFromAccountId)
+
+      if (selectedFromAccount) {
+        const availableBalance = parseFloat(selectedFromAccount.availableBalance);
+        transferAmount.setAttribute('max', availableBalance);
+        const enteredAmount = parseFloat(transferAmount.value);
+
+
+        // Validate transferAmount to ensure it's a number and doesn't exceed available balance
+        if (isNaN(enteredAmount)) {
+          transferAmount.setCustomValidity("Please enter a valid number.");
+        } else if (enteredAmount > availableBalance) {
+          transferAmount.setCustomValidity(`Amount cannot exceed the available balance of ${availableBalance}.`);
+        } else {
+          transferAmount.setCustomValidity("");  // Reset custom validity
+        }
+      }
+    });
+
+    // Initialize account options
+    updateAccountOptions();
+  });
+</script>
+
+<script>
+    document.getElementById("submitBtn").addEventListener("click", () => {
+  const transferAmount = document.getElementById("transferAmount").value;
+  const fromAccountId = document.getElementById("fromAccountNumber").value;
+  const toAccountId = document.getElementById("toAccountNumber").value;
+  const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+  fetch(`/funds/check-transfer?fromAccount=${fromAccountId}&toAccount=${toAccountId}&amount=${transferAmount}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showConfirmationModal();
+      } else {
+        alert("Transfer cannot proceed: " + data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Something went wrong while processing the transfer.');
+    });
+});
+
+// Function to show the confirmation modal
+function showConfirmationModal() {
+  const modal = new bootstrap.Modal(document.getElementById('confirmModal'), {
+    keyboard: false  // Optional: Disable closing with the keyboard
+  });
+
+  modal.show();  // Show the modal
+
+  // Handle the Confirm button
+  document.getElementById("confirmBtn").addEventListener("click", () => {
+    const transferAmount = document.getElementById("transferAmount").value;
+    const fromAccountId = document.getElementById("fromAccountNumber").value;
+    const toAccountId = document.getElementById("toAccountNumber").value;
+
+    // Make the POST request to confirm the transfer
+    fetch(`/funds/confirm-transfer`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fromAccount: fromAccountId,
+        toAccount: toAccountId,
+        amount: transferAmount,
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert("Transfer confirmed successfully.");
+        modal.hide();  // Hide the modal
+      } else {
+        alert("Transfer failed: " + data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Something went wrong while confirming the transfer.');
+    });
+  });
+}
+
+</script>
+
+<!-- HTML Part for transferAmount and transferAmountRange inputs -->
+
+
+
+
+{% endblock %}

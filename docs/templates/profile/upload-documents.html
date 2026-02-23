@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Upgrade Level{% endblock %}
+{% block body %}
+<div class="col-md-12 col-lg-12 col-sm-12">
+<h4>Proof of Identity</h4>
+<p>Any valid document with Photo issued by Government authority</p>
+    <div class="col-md4 col-lg-4 col-sm-12">
+     <form>
+        <div class="input-group mb-3">
+            <!-- File Input -->
+            <input type="file" class="form-control" id="aadhar-front" aria-describedby="file1-label" aria-label="Upload" accept=".jpg,.png,.pdf">
+            <span class="input-group-text" id="file1-label">Aadhar Front</span>
+        </div>
+          <div class="input-group mb-3">
+            <!-- File Input -->
+            <input type="file" class="form-control" id="aadhar-back" aria-describedby="file1-label" aria-label="Upload" accept=".jpg,.png,.pdf">
+            <span class="input-group-text" id="file2-label">Aadhar Back</span>
+        </div>
+         <h4>PAN Card</h4>
+         <p>Picture of your recent valid Taxation Doc</p>
+         <div class="input-group mb-3">
+            <!-- File Input -->
+            <input type="file" class="form-control" id="pan-card" aria-describedby="file1-label" aria-label="Upload" accept=".jpg,.png,.pdf">
+            <span class="input-group-text" id="file3-label">Pan Card</span>
+        </div>
+    </form>
+</div>
+
+</div>
+
+{% endblock %}

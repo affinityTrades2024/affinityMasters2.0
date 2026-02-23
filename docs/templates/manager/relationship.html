@@ -1,0 +1,148 @@
+{% extends 'base_manager.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Admin Portal{% endblock %}
+{% block body %}
+<h5>Manage Investor Relationships</h5>
+<br/>
+<button id="addNewRecord" class="btn btn-primary">Add New Record</button>
+<br/>
+<br/>
+<div class="row">
+    <table id="editableTable" class="display">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>PID</th>
+            <th>Account Number</th>
+            <th>Client ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Nickname</th>
+            <th>Parent Account Number</th>
+            <th>Parent Client ID</th>
+            <th>Ref ID</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+</div>
+
+{% endblock %}
+
+{% block customscript %}
+<script>
+$(document).ready(function() {
+    var table = $('#editableTable').DataTable({
+        ajax: "/manager/data",
+        pageLength: 25,
+        lengthMenu: [10, 25, 50, 100, 500],
+        columns: [
+            { data: "id" },
+            { data: "pid", className: "editable" },
+            { data: "accountNumber", className: "editable" },
+            { data: "clientID", className: "editable" },
+            { data: "name", className: "editable" },
+            { data: "email", className: "editable" },
+            { data: "nickname", className: "editable" },
+            { data: "parentAccountNumber", className: "editable" },
+            { data: "parentClientID", className: "editable" },
+            { data: "refId", className: "editable" }
+        ]
+    });
+
+    // ✅ Inline Editing
+    $('#editableTable tbody').on('click', 'td.editable', function() {
+        var cell = table.cell(this);
+        var oldValue = cell.data();
+        var rowData = table.row($(this).closest('tr')).data();
+        var column = table.column(this).dataSrc();
+
+        var input = $('<input type="text" class="edit-input">').val(oldValue);
+        $(this).html(input);
+        input.focus();
+
+        input.blur(function() {
+            var newValue = $(this).val();
+            if (newValue !== oldValue) {
+                $.ajax({
+                    url: "/manager/update",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({ id: rowData.id, column: column, value: newValue }),
+                    success: function(response) {
+                        if (response.success) {
+                            cell.data(newValue).draw();
+                        } else {
+                            alert("Update failed");
+                            cell.data(oldValue).draw();
+                        }
+                    }
+                });
+            } else {
+                cell.data(oldValue).draw();
+            }
+        });
+    });
+
+    // ✅ Handle Adding New Record
+    $('#addNewRecord').click(function() {
+        var newRow = `
+            <tr>
+                <td><input type="text" class="new-input" id="new_id"></td>
+                <td><input type="text" class="new-input" id="new_pid"></td>
+                <td><input type="text" class="new-input" id="new_accountNumber"></td>
+                <td><input type="text" class="new-input" id="new_clientID"></td>
+                <td><input type="text" class="new-input" id="new_name"></td>
+                <td><input type="text" class="new-input" id="new_email"></td>
+                <td><input type="text" class="new-input" id="new_nickname"></td>
+                <td><input type="text" class="new-input" id="new_parentAccountNumber"></td>
+                <td><input type="text" class="new-input" id="new_parentClientID"></td>
+                <td><input type="text" class="new-input" id="new_refId"></td>
+                <td><button id="saveNewRecord">Save</button></td>
+            </tr>
+        `;
+        $('#editableTable tbody').prepend(newRow);
+    });
+
+    // ✅ Save New Record
+    $('#editableTable tbody').on('click', '#saveNewRecord', function() {
+        var newData = {
+            id: $('#new_id').val(),
+            pid: $('#new_pid').val(),
+            accountNumber: $('#new_accountNumber').val(),
+            clientID: $('#new_clientID').val(),
+            name: $('#new_name').val(),
+            email: $('#new_email').val(),
+            nickname: $('#new_nickname').val(),
+            parentAccountNumber: $('#new_parentAccountNumber').val(),
+            parentClientID: $('#new_parentClientID').val(),
+            refId: $('#new_refId').val()
+        };
+
+        $.ajax({
+            url: "/manager/add",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(newData),
+            success: function(response) {
+                if (response.success) {
+                    table.ajax.reload();  // Refresh table
+                    alert("Record Added Successfully");
+                } else {
+                    alert("Failed to add record");
+                }
+            }
+        });
+    });
+});
+</script>
+
+{% endblock %}

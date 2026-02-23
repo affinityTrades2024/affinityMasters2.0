@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}My Team{% endblock %}
+{% block body %}
+<div class="row">
+    <div class="col-md-4 col-lg-4 col-sm-12 mb-2">
+
+<!--        <label for="accountNumber" class="form-label">Account</label>-->
+        <select id="accountNumber" name="accountNumber" class="form-select">
+          <option value="">Select Account</option>
+          <!-- Options will be dynamically populated -->
+       </select>
+    </div>
+    <div class="col-md-2 col-lg-2 col-6">
+        <button id="getTeamData" class="btn btn-sm btn-primary">Get Team Data</button>
+
+    </div>
+    <div id="loadingIcon" class="spinner-border text-primary" role="status" style="display: none;">
+          <span class="sr-only">Loading...</span>
+    </div>
+    <div class="col-md-4 col-lg-4 col-sm-12 mb-2" id="level" style="display:none;">
+        Investor Level: <span id="levelName" class="badge bg-success"></span>
+    </div>
+    <div class="col-md-4 col-lg-4 col-sm-12 mb-2" id="lastModifiedOn" style="display:none;">
+        <i>As On: <span id="lastModified" class="text-warning"></span></i>
+    </div>
+</div>
+
+<div id="tree"></div>
+<script>
+const accounts = {{ pamm_accounts|tojson }};
+
+document.addEventListener("DOMContentLoaded", () => {
+    const accountNumber = document.getElementById("accountNumber");
+
+    // Populate Account Dropdown
+    accounts.forEach(account => {
+      const option = document.createElement("option");
+      // Set the value as a concatenation of accountId and accountNumber
+      option.value = `${account.accountId},${account.accountNumber}`;
+      // Corrected: Use account.accountNumber in the textContent instead of account.number
+      option.textContent = `${account.caption} (${account.accountNumber})`;
+      accountNumber.appendChild(option);
+    });
+});
+
+document.getElementById("getTeamData").addEventListener("click", () => {
+    const pammAccount = document.getElementById("accountNumber").value;
+
+    const button = document.getElementById("getTeamData");
+    const loadingIcon = document.getElementById("loadingIcon");  // Assuming you have a loading element like a spinner or "Loading..."
+
+    // Disable the button and show loading icon
+    button.disabled = true;
+    loadingIcon.style.display = "inline";  // Show the loading indicator
+
+    fetch(`/team/team-chart?accountData=${pammAccount}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+
+                // Call a function to load the data into the chart
+                loadChartData(data.teamData);
+                level.style.display = "inline";
+                lastModifiedOn.style.display = "inline";
+                document.getElementById("levelName").textContent=data.level;
+                document.getElementById("lastModified").textContent=data.lastModified;
+            } else {
+                alert("Error: " + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Something went wrong while fetching team data.');
+        })
+        .finally(() => {
+            // Re-enable the button and hide the loading icon once the fetch is completed
+            button.disabled = false;
+            loadingIcon.style.display = "none";  // Hide the loading indicator
+        });
+});
+
+// Function to load the data into the chart
+function loadChartData(teamData) {
+    // Assuming teamData is an object with necessary data for the chart
+    // Example of using the teamData to populate the chart (e.g., using OrgChart.js)
+    //name
+    OrgChart.templates.ana.field_0 =
+        `<text class="field_0" style="font-size: 22px;" fill="#ffffff" x="125" y="30" text-anchor="middle">{val}</text>`;
+
+    //accountNumber
+    OrgChart.templates.ana.field_1 =
+        `<text class="field_1" style="font-size: 16px;" fill="#ffffff" x="125" y="50" text-anchor="middle">#{val}</text>`;
+
+    //Balance Label
+    OrgChart.templates.ana.field_2 =
+        `<text class="field_3" style="font-size: 14px;" fill="#ffffff" x="55" y="70" text-anchor="middle">{val}</text>`;
+
+    //Balance
+    OrgChart.templates.ana.field_3 =
+        `<text class="field_2" style="font-size: 20px;" fill="#ffffff" x="55" y="90" text-anchor="middle">\${val}</text>`;
+
+    //Partnership Fee Label
+    OrgChart.templates.ana.field_4 =
+        `<text class="field_3" style="font-size: 14px;" fill="#ffffff" x="180" y="70" text-anchor="middle">{val}</text>`;
+    //Parnership Fee
+    OrgChart.templates.ana.field_5 =
+        `<text class="field_3" style="font-size: 20px;" fill="#ffffff" x="180" y="90" text-anchor="middle">\${val}</text>`;
+    // Create the chart data
+    const chartData = teamData.map(account => ({
+        id: account.id,
+        name: account.name,
+        accountNumber: account.accountNumber,
+        pid: account.pid, // Parent ID if available
+        partnershipFees: account.partnershipFees,
+        balance: account.balance,
+        balanceLabel: account.balanceLabel,
+        partnershipLabel: account.partnershipLabel
+
+        // Add other properties if needed for the chart
+    }));
+
+
+    // Initialize the OrgChart or any charting library
+    let options = getOptions();
+    let chart = new OrgChart(document.getElementById("tree"), {
+        enableSearch: false,
+        enableDragDrop: true,
+        mouseScrool: OrgChart.none,
+        editForm: { readOnly: true },
+        scaleInitial: options.scaleInitial,
+        tags: {
+            "assistant": {
+                template: "ula"
+            }
+        },
+        nodeMenu: {
+            details: { text: "Details" }
+        },
+        nodeBinding: {
+            field_0: "name",
+            field_1: "account",
+            field_2: "balanceLabel",
+            field_3: "balance",
+            field_4: "partnershipLabel",
+            field_5: "partnershipFees"
+        },
+        nodes: chartData,
+    });
+
+    function getOptions() {
+        const searchParams = new URLSearchParams(window.location.search);
+        let fit = searchParams.get('fit');
+        let scaleInitial = 1;
+        if (fit == 'yes') {
+            scaleInitial = OrgChart.match.boundary;
+        }
+        return { scaleInitial };
+    }
+
+    // Optionally, you can do further configuration for the chart here (e.g., customizing nodes, labels, etc.)
+
+}
+</script>
+
+
+
+{% endblock %}

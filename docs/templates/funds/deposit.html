@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block notification_count %}1{% endblock %}
+{% block notification_count_total %}1{% endblock %}
+{% block notification_items %}{% endblock %}
+
+{% block header_profile_name %} {{ profile_data['info']['givenName'] }}  {{ profile_data['info']['familyName'] }}{% endblock %}
+{% block headerdropdown_profile_name %}{{ profile_data['email'] }}{% endblock %}
+{% block page_header %}Deposit{% endblock %}
+{% block body %}
+<h5>To</h5>
+<form action="{{ url_for('funds.submit_deposit') }}" method="post">
+  <div class="col-md-4">
+    <label for="accountNumber" class="form-label">Account</label>
+    <select id="accountNumber" name="accountNumber" class="form-select">
+      <option value="">Select Account</option>
+      <!-- Options will be dynamically populated -->
+    </select>
+  </div>
+  <br />
+  <h5>Using</h5>
+  <div class="row">
+    <div class="col-md-4" id="currencyContainer" hidden>
+      <label for="currency" class="form-label">Currency</label>
+      <select id="currency" name="currency" class="form-select">
+        <option value="">Select Currency</option>
+        <!-- Options dynamically populated -->
+      </select>
+      <div id="rateInfo" class="form-text"></div>
+    </div>
+    <div class="col-md-4" id="paymentMethodContainer" hidden>
+      <label for="paymentMethod" class="form-label">Payment Method</label>
+      <select id="paymentMethod" name="paymentMethod" class="form-select">
+        <option value="">Select Payment Method</option>
+        <!-- Options dynamically populated -->
+      </select>
+    </div>
+  </div>
+  <br>
+  <div class="row" id="amountContainer" hidden>
+    <h5>Indicative Amount</h5>
+    <p>Use these fields to check current rates for deposit. Commission depends on blockchain.</p>
+    <div class="col-md-4">
+      <label for="toPayAmount" class="form-label">To Pay</label>
+      <input id="toPayAmount" name="toPayAmount" type="text" class="form-control" placeholder="Enter Amount to Pay">
+    </div>
+    <div class="col-md-4">
+      <label for="toGetAmount" class="form-label">To Get</label>
+      <input id="toGetAmount" name="toGetAmount" type="text" class="form-control" placeholder="Calculated Amount" readonly>
+    </div>
+  </div>
+  <br>
+  <div class="row" id="transferContainer" hidden>
+    <h5>Time to Fund</h5>
+    <p>Please contact Team for Bank Account Details.</p>
+    <hr class="mb-5" />
+    <div class="col-md-4">
+      <label for="transferAmount"  class="form-label">Amount</label>
+      <input id="transferAmount" name="transferAmount" type="text" class="form-control" readonly>
+    </div>
+    <div class="col-md-4">
+      <label for="mobileNumber" class="form-label">Please Enter Your Mobile Number</label>
+      <input id="mobileNumber" name="mobileNumber" type="text" class="form-control" placeholder="Enter Mobile Number">
+    </div>
+  </div>
+  <div class="row mt-3">
+    <div class="col-md-2">
+      <button type="submit" id="submitRequest" class="btn btn-success">Submit Request</button>
+    </div>
+  </div>
+</form>
+<h4>Deposits</h4>
+<div class="row">
+<table id="transactionsTable" class="display">
+  <thead>
+    <tr>
+      <th>Transaction ID</th>
+      <th>Date & Time</th>
+      <th>Type</th>
+      <th>Amount</th>
+      <th>Currency</th>
+      <th>From Account</th>
+      <th>To Account</th>
+      <th>Platform</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for transaction in transactions_data %}
+      <tr>
+        <!-- Transaction ID -->
+        <td>{{ transaction['transactionId'] if transaction['transactionId'] else 'N/A' }}</td>
+
+        <!-- Date & Time -->
+        <td>{{ transaction['createTime'] if transaction['createTime'] else 'N/A' }}</td>
+
+        <!-- Type -->
+        <td>{{ transaction['type'] if transaction['type'] else 'N/A' }}</td>
+
+        <!-- Amount -->
+        <td>{{ transaction['creditDetails']['amount'] }}</td>
+
+        <!-- Currency -->
+        <td>
+          {% if transaction['creditDetails']['currency'] %}
+            {{ transaction['creditDetails']['currency']['alphabeticCode'] if transaction['creditDetails']['currency']['alphabeticCode'] else 'N/A' }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- From Account -->
+        <td>
+          {% if transaction['debitDetails'] and transaction['debitDetails']['account'] %}
+            {{ transaction['debitDetails']['account']['clientName'] }}<br/>
+            ({{ transaction['debitDetails']['account']['caption'] }}) #{{ transaction['debitDetails']['account']['accountNumber'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- To Account -->
+        <td>
+          {% if transaction['creditDetails'] and transaction['creditDetails']['account'] %}
+            {{ transaction['creditDetails']['account']['clientName'] }}<br/>
+            ({{ transaction['creditDetails']['account']['caption'] }}) {{ transaction['creditDetails']['account']['accountNumber'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- Platform -->
+        <td>
+          {% if transaction['creditDetails'] and transaction['creditDetails']['account']['platform'] %}
+            {{ transaction['creditDetails']['account']['platform']['caption'] }}
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+
+        <!-- Status -->
+        <td>{{ transaction['status'] if transaction['status'] else 'N/A' }}</td>
+
+
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+</div>
+<script>
+  // Pass deposit_data from Flask to JavaScript
+  const depositData = {{ deposit_data|tojson }};
+  const accounts = depositData.accounts;
+  const rates = depositData.rates;
+  const consolidatedData = depositData.consolidated;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const accountNumber = document.getElementById("accountNumber");
+    const currencyContainer = document.getElementById("currencyContainer");
+    const currency = document.getElementById("currency");
+    const paymentMethodContainer = document.getElementById("paymentMethodContainer");
+    const paymentMethod = document.getElementById("paymentMethod");
+    const rateInfo = document.getElementById("rateInfo");
+    const amountContainer = document.getElementById("amountContainer");
+    const transferContainer = document.getElementById("transferContainer");
+    const toPayAmount = document.getElementById("toPayAmount");
+    const toGetAmount = document.getElementById("toGetAmount");
+    const transferAmount = document.getElementById("transferAmount");
+
+    // Populate Account Dropdown
+    accounts.forEach(account => {
+      const option = document.createElement("option");
+      option.value = account.accountId; // Use accountId as value
+      option.textContent = `${account.name} (${account.number})`;
+      accountNumber.appendChild(option);
+    });
+
+    // Handle Account Selection
+    accountNumber.addEventListener("change", () => {
+      const selectedAccountId = parseInt(accountNumber.value, 10);
+      const selectedAccount = accounts.find(acc => acc.accountId === selectedAccountId);
+
+      if (selectedAccount) {
+        populateCurrencyDropdown(currency, selectedAccount.currencies);
+        currencyContainer.hidden = false;
+        resetPaymentMethod();
+      } else {
+        resetForm();
+      }
+    });
+
+    // Populate Currency Dropdown
+    function populateCurrencyDropdown(dropdown, currencies) {
+      dropdown.innerHTML = `<option value="">Select Currency</option>`;
+      currencies.forEach(alphabeticCode => {
+        if (consolidatedData[alphabeticCode]) {
+          const currencyDetails = consolidatedData[alphabeticCode];
+          const option = document.createElement("option");
+          option.value = currencyDetails.currency_id; // Use currency_id as value
+          option.textContent = alphabeticCode;
+          option.dataset.alphabeticCode = alphabeticCode; // Store alphabeticCode as data attribute
+          dropdown.appendChild(option);
+        }
+      });
+    }
+
+    // Handle Currency Selection
+    currency.addEventListener("change", () => {
+      const selectedCurrencyId = currency.value;
+      const selectedAlphabeticCode = currency.options[currency.selectedIndex]?.dataset?.alphabeticCode;
+
+      if (selectedCurrencyId && selectedAlphabeticCode) {
+        const currencyDetails = consolidatedData[selectedAlphabeticCode];
+        rateInfo.textContent = `1 USD = ${rates[selectedAlphabeticCode]} ${selectedAlphabeticCode}`;
+        populatePaymentMethods(paymentMethod, currencyDetails.payment_methods);
+        paymentMethodContainer.hidden = false;
+      } else {
+        resetPaymentMethod();
+      }
+    });
+
+    // Populate Payment Methods Dropdown
+    function populatePaymentMethods(dropdown, methods) {
+      dropdown.innerHTML = `<option value="">Select Payment Method</option>`;
+      methods.forEach(method => {
+        const opt = document.createElement("option");
+        opt.value = method.id; // Use payment method id as value
+        opt.textContent = method.caption;
+        dropdown.appendChild(opt);
+      });
+    }
+
+    // Handle Payment Method Selection
+    paymentMethod.addEventListener("change", () => {
+      const selectedPaymentMethod = paymentMethod.value;
+      if (selectedPaymentMethod) {
+        amountContainer.hidden = false;
+        transferContainer.hidden = false;
+      } else {
+        amountContainer.hidden = true;
+        transferContainer.hidden = true;
+      }
+    });
+
+    // Handle To Pay Amount Input
+    toPayAmount.addEventListener("input", () => {
+      const amount = parseFloat(toPayAmount.value) || 0;
+      const selectedCurrencyId = currency.value;
+      const selectedAlphabeticCode = currency.options[currency.selectedIndex]?.dataset?.alphabeticCode;
+
+      if (selectedAlphabeticCode && rates[selectedAlphabeticCode]) {
+        const rate = parseFloat(rates[selectedAlphabeticCode]);
+        const calculatedAmount = (amount * rate).toFixed(2);
+        toGetAmount.value = calculatedAmount;
+        transferAmount.value = parseFloat(toPayAmount.value) || 0;
+      } else {
+        toGetAmount.value = "";
+        transferAmount.value = "";
+      }
+    });
+
+    // Reset Form Fields
+    function resetForm() {
+      currencyContainer.hidden = true;
+      paymentMethodContainer.hidden = true;
+      amountContainer.hidden = true;
+      transferContainer.hidden = true;
+      currency.innerHTML = `<option value="">Select Currency</option>`;
+      resetPaymentMethod();
+      toPayAmount.value = "";
+      toGetAmount.value = "";
+      transferAmount.value = "";
+    }
+
+    function resetPaymentMethod() {
+      paymentMethodContainer.hidden = true;
+      paymentMethod.innerHTML = `<option value="">Select Payment Method</option>`;
+      rateInfo.textContent = "";
+      amountContainer.hidden = true;
+      transferContainer.hidden = true;
+    }
+  });
+</script>
+
+
+{% endblock %}
