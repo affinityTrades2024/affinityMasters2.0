@@ -128,34 +128,79 @@ export async function getTransactionsForClient(clientId: number): Promise<{
   transactions: RawTransactionRow[];
   accountIds: number[];
 }> {
-  const { data: primary } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("client_id", clientId)
-    .order("operation_date", { ascending: false });
+  // Step 1 – Primary: all transactions where client_id = this user (no limit; paginate to get all)
+  const primary: RawTransactionRow[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data: chunk } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("operation_date", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (!chunk?.length) break;
+    primary.push(...(chunk as RawTransactionRow[]));
+    if (chunk.length < pageSize) break;
+    from += pageSize;
+  }
 
-  const investmentAccountId = await getInvestmentAccountId(clientId);
-  const myAccountIds = new Set<number>();
-  if (investmentAccountId != null) myAccountIds.add(investmentAccountId);
+  const seenIds = new Set(primary.map((r) => r.id));
 
-  const { data: feeToMe } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("type", "fees")
-    .in("destination_account_id", Array.from(myAccountIds));
-  const seenIds = new Set((primary || []).map((r) => r.id));
-  const merged: RawTransactionRow[] = [...(primary || [])];
-  for (const row of feeToMe || []) {
-    if (!seenIds.has(row.id)) {
-      seenIds.add(row.id);
-      merged.push(row as RawTransactionRow);
+  // Step 2 – My account ids: from accounts + pamm_master for this client (for fee-destination merge)
+  const myDestinationIds = new Set<number>();
+  const { data: accountRows } = await supabase
+    .from("accounts")
+    .select("account_id, account_number")
+    .eq("client_id", clientId);
+  for (const r of accountRows || []) {
+    myDestinationIds.add(Number(r.account_id));
+    const num = r.account_number;
+    if (num != null) {
+      const n = Number(num);
+      if (Number.isFinite(n)) myDestinationIds.add(n);
     }
   }
+  const { data: pammRows } = await supabase
+    .from("pamm_master")
+    .select("id, account_number")
+    .eq("client_id", clientId);
+  for (const r of pammRows || []) {
+    myDestinationIds.add(Number(r.id));
+    const num = r.account_number;
+    if (num != null) {
+      const n = Number(num);
+      if (Number.isFinite(n)) myDestinationIds.add(n);
+    }
+  }
+
+  // Step 3 – Extra: fee transactions where destination is one of my accounts (cap 100 ids, limit 500)
+  const merged: RawTransactionRow[] = [...primary];
+  if (myDestinationIds.size > 0) {
+    const destList = Array.from(myDestinationIds).slice(0, 100);
+    const { data: feeExtra } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("type", "fees")
+      .in("destination_account_id", destList)
+      .order("operation_date", { ascending: false })
+      .limit(500);
+    for (const row of feeExtra || []) {
+      const id = Number(row.id);
+      const destId = row.destination_account_id != null ? Number(row.destination_account_id) : null;
+      if (!seenIds.has(id) && destId != null && myDestinationIds.has(destId)) {
+        seenIds.add(id);
+        merged.push(row as RawTransactionRow);
+      }
+    }
+  }
+
   merged.sort((a, b) => (b.operation_date || "").localeCompare(a.operation_date || ""));
 
+  const accountIds = Array.from(myDestinationIds);
   return {
     transactions: merged,
-    accountIds: Array.from(myAccountIds),
+    accountIds,
   };
 }
 
@@ -179,6 +224,9 @@ export function toDisplayTransactions(
       debitAcc.accountNumber,
       selfAccountNumbers
     );
+    const destAmt = Number(r.destination_amount ?? 0);
+    const srcAmt = Number(r.source_amount ?? 0);
+    const displayAmount = destAmt > 0 ? destAmt : srcAmt;
     return {
       transactionId: r.id,
       type: displayType,
@@ -186,12 +234,12 @@ export function toDisplayTransactions(
       status: (r.status as string) || "—",
       operationDate: r.operation_date || "",
       creditDetails: {
-        amount: Number(r.destination_amount ?? 0),
+        amount: displayAmount,
         currency: { alphabeticCode: (r.destination_currency as string) || "USD" },
         account: creditAcc,
       },
       debitDetails: {
-        amount: Number(r.source_amount ?? 0),
+        amount: srcAmt,
         account: debitAcc,
       },
     };

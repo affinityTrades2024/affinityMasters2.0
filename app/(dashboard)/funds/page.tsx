@@ -54,7 +54,7 @@ export default async function FundsPage() {
         <InfoBox
           icon={<BiDollar className="h-7 w-7" />}
           title="Estimated Total Balance"
-          linkHref="/wallets"
+          linkHref="/pamm/accounts"
           linkLabel="↗"
           value={formatUsd(totalBalanceUsd)}
           subValue={formatInr(totalBalanceUsd * displayRate)}

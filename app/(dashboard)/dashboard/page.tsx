@@ -78,7 +78,7 @@ export default async function DashboardPage() {
         <InfoBox
           icon={<BiDollar className="h-7 w-7" />}
           title="Estimated Total Balance"
-          linkHref="/wallets"
+          linkHref="/funds"
           linkLabel="↗"
           value={formatUsd(metrics.totalBalanceUsd)}
           subValue={formatInr(metrics.totalBalanceInr)}

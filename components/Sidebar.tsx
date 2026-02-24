@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BiBarChartAlt2,
-  BiWallet,
   BiTransferAlt,
   BiHistory,
   BiBox,
@@ -15,7 +14,6 @@ import { HiOutlineCurrencyDollar } from "react-icons/hi";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BiBarChartAlt2 },
-  { href: "/wallets", label: "Wallets", icon: BiWallet },
   {
     href: "/funds",
     label: "Funds",
@@ -26,12 +24,7 @@ const navItems = [
     ],
   },
   { href: "/transactions", label: "Transaction History", icon: BiHistory },
-  {
-    href: "/pamm/accounts",
-    label: "Investment Account",
-    icon: BiBox,
-    children: [{ href: "/pamm/accounts", label: "My Account" }],
-  },
+  { href: "/pamm/accounts", label: "Investment Account", icon: BiBox },
   { href: "/team", label: "My Team", icon: BiGroup },
   { href: "/team/referral", label: "Referrals", icon: BiGroup },
 ];
@@ -54,7 +47,8 @@ function NavLink({
     <li className="nav-item">
       {subItems?.length ? (
         <>
-          <span
+          <Link
+            href={href}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
               isActive
                 ? "bg-slate-600/50 text-white"
@@ -63,7 +57,7 @@ function NavLink({
           >
             {Icon && <Icon className="h-5 w-5 shrink-0" />}
             {label}
-          </span>
+          </Link>
           <ul className="ml-4 mt-1 space-y-0.5 border-l border-slate-600 pl-3">
             {subItems.map((c) => (
               <li key={c.href}>
