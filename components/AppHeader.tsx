@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { BiBell, BiFullscreen, BiChevronDown, BiUser, BiLock, BiLogOut } from "react-icons/bi";
+import { BiBell, BiFullscreen, BiChevronDown, BiCog, BiLogOut } from "react-icons/bi";
 
 export default function AppHeader({
   profileName,
@@ -71,22 +71,14 @@ export default function AppHeader({
               <div className="border-b border-gray-100 bg-slate-700 px-4 py-3">
                 <p className="truncate text-sm font-medium text-white">{profileEmail}</p>
               </div>
-              <div className="grid grid-cols-2 gap-1 border-b border-gray-100 px-2 py-2">
+              <div className="border-b border-gray-100 px-2 py-2">
                 <Link
                   href="/profile"
                   className="flex items-center gap-2 rounded px-2 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   onClick={() => setDropdownOpen(false)}
                 >
-                  <BiUser className="h-4 w-4" />
-                  Profile
-                </Link>
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2 rounded px-2 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setDropdownOpen(false)}
-                >
-                  <BiLock className="h-4 w-4" />
-                  Security
+                  <BiCog className="h-4 w-4" />
+                  Settings
                 </Link>
               </div>
               <div className="p-2">

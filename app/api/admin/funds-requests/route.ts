@@ -86,13 +86,14 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const id = body?.id != null ? parseInt(String(body.id), 10) : NaN;
   const action = body?.action;
+  const adminNotes = typeof body?.admin_notes === "string" ? body.admin_notes.trim() || null : null;
 
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "Valid id required" }, { status: 400 });
   }
-  if (action !== "approve" && action !== "reject") {
+  if (action !== "approve" && action !== "reject" && action !== "disburse") {
     return NextResponse.json(
-      { error: "action must be 'approve' or 'reject'" },
+      { error: "action must be 'approve', 'reject', or 'disburse'" },
       { status: 400 }
     );
   }
@@ -109,6 +110,33 @@ export async function PATCH(request: Request) {
     .select("id, client_id, type, account_id, amount_usd, status")
     .eq("id", id)
     .single();
+
+  if (action === "disburse") {
+    if (fetchError || !row) {
+      return NextResponse.json({ error: "Request not found" }, { status: 400 });
+    }
+    if (row.type !== "withdrawal") {
+      return NextResponse.json({ error: "Only withdrawal requests can be marked disbursed" }, { status: 400 });
+    }
+    if (row.status !== "approved_pending_disbursement") {
+      return NextResponse.json(
+        { error: "Request must be in Approved – Processing payout status to mark as disbursed" },
+        { status: 400 }
+      );
+    }
+    const { error: disbError } = await supabase
+      .from("funds_requests")
+      .update({
+        status: "disbursed",
+        disbursed_at: new Date().toISOString(),
+        admin_notes: adminNotes,
+      })
+      .eq("id", id);
+    if (disbError) {
+      return NextResponse.json({ error: disbError.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
 
   if (fetchError || !row || row.status !== "pending") {
     return NextResponse.json(
@@ -144,7 +172,9 @@ export async function PATCH(request: Request) {
         .eq("account_id", accountId)
         .single();
       const available =
-        Number(acc?.free_funds ?? acc?.balance ?? 0) ?? 0;
+        (Number(acc?.free_funds ?? 0) > 0
+          ? Number(acc?.free_funds)
+          : Number(acc?.balance ?? 0)) ?? 0;
       if (amount > available) {
         return NextResponse.json(
           { error: "Insufficient balance to approve withdrawal" },
@@ -218,14 +248,20 @@ export async function PATCH(request: Request) {
       }
     }
 
+    const newStatus = row.type === "withdrawal" ? "approved_pending_disbursement" : "approved";
+    const updatePayload: Record<string, unknown> = {
+      status: newStatus,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by_admin_id: reviewedByAdminId,
+      transaction_id: nextTxId,
+    };
+    if (row.type === "deposit" && adminNotes != null) {
+      updatePayload.admin_notes = adminNotes;
+    }
+
     const { error: updReq } = await supabase
       .from("funds_requests")
-      .update({
-        status: "approved",
-        reviewed_at: new Date().toISOString(),
-        reviewed_by_admin_id: reviewedByAdminId,
-        transaction_id: nextTxId,
-      })
+      .update(updatePayload)
       .eq("id", id);
     if (updReq) {
       return NextResponse.json({ error: updReq.message }, { status: 500 });

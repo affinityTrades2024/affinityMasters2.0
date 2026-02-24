@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BiEnvelope, BiLock, BiShow, BiHide } from "react-icons/bi";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const registered = searchParams.get("registered") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +53,11 @@ export default function LoginPage() {
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-lg">
           <p className="text-center text-gray-600 mb-6">Sign in to start your session</p>
+          {registered && (
+            <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 mb-4">
+              Registration successful. You can sign in now.
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
               <input
@@ -112,7 +119,7 @@ export default function LoginPage() {
             </a>
           </p>
           <p className="mt-2 text-center text-sm text-gray-500">
-            <a href="/register" className="text-blue-600 hover:underline">
+            <a href="/registration" className="text-blue-600 hover:underline">
               Register a new membership
             </a>
           </p>

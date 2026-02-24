@@ -14,6 +14,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const amountUsd = body?.amountUsd != null ? parseFloat(String(body.amountUsd)) : NaN;
   const accountId = body?.accountId != null ? parseInt(String(body.accountId), 10) : NaN;
+  const bankAccountId = body?.bankAccountId != null ? parseInt(String(body.bankAccountId), 10) : NaN;
 
   if (Number.isNaN(amountUsd) || amountUsd <= 0) {
     return NextResponse.json(
@@ -24,6 +25,12 @@ export async function POST(request: Request) {
   if (!Number.isInteger(accountId) || accountId <= 0) {
     return NextResponse.json(
       { error: "Valid account is required" },
+      { status: 400 }
+    );
+  }
+  if (!Number.isInteger(bankAccountId) || bankAccountId <= 0) {
+    return NextResponse.json(
+      { error: "Valid bank account is required" },
       { status: 400 }
     );
   }
@@ -59,8 +66,24 @@ export async function POST(request: Request) {
     );
   }
 
+  const { data: bankRow } = await supabase
+    .from("bank_accounts")
+    .select("id")
+    .eq("id", bankAccountId)
+    .eq("client_id", clientId)
+    .maybeSingle();
+
+  if (!bankRow) {
+    return NextResponse.json(
+      { error: "Bank account not found or does not belong to you" },
+      { status: 403 }
+    );
+  }
+
   const available =
-    Number(accountRow.free_funds ?? accountRow.balance ?? 0) ?? 0;
+    (Number(accountRow.free_funds ?? 0) > 0
+      ? Number(accountRow.free_funds)
+      : Number(accountRow.balance ?? 0)) ?? 0;
   if (amountUsd > available) {
     return NextResponse.json(
       { error: "Amount exceeds available balance" },
@@ -78,6 +101,7 @@ export async function POST(request: Request) {
       client_id: clientId,
       type: "withdrawal",
       account_id: accountId,
+      bank_account_id: bankAccountId,
       amount_usd: amountUsd,
       amount_inr: amountInr,
       rate_used: rateUsed,

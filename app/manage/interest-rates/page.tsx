@@ -3,53 +3,47 @@ import InterestRatesClient from "./interest-rates-client";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminCard from "@/components/admin/AdminCard";
 
-export default async function ManageInterestRatesPage() {
-  const { data: clientRows } = await supabase
-    .from("clients")
-    .select("investment_account_id")
-    .not("investment_account_id", "is", null);
-  const investmentAccountIds = (clientRows || [])
-    .map((c) => Number(c.investment_account_id))
-    .filter((id) => Number.isFinite(id));
+const PAGE_SIZES = [20, 30, 50] as const;
 
-  const pageSize = 1000;
-  let from = 0;
+function getInterestRatesFilter(q: string | null) {
+  const base = supabase
+    .from("accounts")
+    .select("account_id, account_number, client_name, interest_rate_monthly, email", { count: "exact" })
+    .or("type.eq.investment,type.is.null,product.eq.PAMM Investor")
+    .not("platform", "ilike", "%demo%")
+    .order("account_id");
+  if (q && q.trim()) {
+    const term = q.trim().replace(/\*/g, "");
+    if (term) {
+      return base.or(`account_number.ilike.*${term}*,client_name.ilike.*${term}*,email.ilike.*${term}*`);
+    }
+  }
+  return base;
+}
+
+export default async function ManageInterestRatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; pageSize?: string; q?: string }>;
+}) {
+  const params = await searchParams;
+  const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const pageSizeNum = parseInt(params.pageSize ?? "20", 10);
+  const pageSize: (typeof PAGE_SIZES)[number] = PAGE_SIZES.includes(pageSizeNum as (typeof PAGE_SIZES)[number]) ? (pageSizeNum as (typeof PAGE_SIZES)[number]) : 20;
+  const searchQuery = typeof params.q === "string" ? params.q : null;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   type AccountRow = {
     account_id: number;
     account_number: string | null;
     client_name: string | null;
     interest_rate_monthly: number | null;
-    client_id: number | null;
+    email: string | null;
   };
-  const allAccounts: AccountRow[] = [];
-
-  if (investmentAccountIds.length > 0) {
-    while (true) {
-      const { data: chunk } = await supabase
-        .from("accounts")
-        .select("account_id, account_number, client_name, interest_rate_monthly, client_id")
-        .in("account_id", investmentAccountIds)
-        .not("platform", "ilike", "%demo%")
-        .order("account_id")
-        .range(from, from + pageSize - 1);
-      if (!chunk?.length) break;
-      allAccounts.push(...(chunk as AccountRow[]));
-      if (chunk.length < pageSize) break;
-      from += pageSize;
-    }
-  }
-
-  const accounts = allAccounts;
-
-  const clientIds = [...new Set(accounts.map((a) => a.client_id).filter(Boolean))];
-  const clientChunkSize = 500;
-  const clientRows: { id: number; email?: string }[] = [];
-  for (let i = 0; i < clientIds.length; i += clientChunkSize) {
-    const ids = clientIds.slice(i, i + clientChunkSize);
-    const { data } = await supabase.from("clients").select("id, email").in("id", ids);
-    if (data?.length) clientRows.push(...(data as { id: number; email?: string }[]));
-  }
-  const emailByClientId = new Map(clientRows.map((c) => [Number(c.id), c.email ?? "—"]));
+  const base = getInterestRatesFilter(searchQuery);
+  const { data: rows, count: totalCount } = await base.range(from, to);
+  const accounts = (rows || []) as AccountRow[];
 
   return (
     <div>
@@ -62,12 +56,16 @@ export default async function ManageInterestRatesPage() {
           accounts={
             accounts.map((a) => ({
               account_id: Number(a.account_id),
-              account_number: String(a.account_number),
+              account_number: String(a.account_number ?? ""),
               client_name: (a.client_name as string) || "",
               interest_rate_monthly: a.interest_rate_monthly != null ? Number(a.interest_rate_monthly) : 3,
-              email: emailByClientId.get(Number(a.client_id)) ?? "—",
+              email: (a.email as string) || "—",
             }))
           }
+          totalCount={totalCount ?? 0}
+          page={page}
+          pageSize={pageSize}
+          searchQuery={searchQuery ?? ""}
         />
       </AdminCard>
     </div>

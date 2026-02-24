@@ -147,34 +147,18 @@ export async function getTransactionsForClient(clientId: number): Promise<{
 
   const seenIds = new Set(primary.map((r) => r.id));
 
-  // Step 2 – My account ids: from accounts + pamm_master for this client (for fee-destination merge)
+  // Step 2 – Destination IDs for extra fee query: ONLY pamm_master.id for this client.
+  // Do not add accounts.account_id, accounts.account_number, or pamm_master.account_number.
   const myDestinationIds = new Set<number>();
-  const { data: accountRows } = await supabase
-    .from("accounts")
-    .select("account_id, account_number")
-    .eq("client_id", clientId);
-  for (const r of accountRows || []) {
-    myDestinationIds.add(Number(r.account_id));
-    const num = r.account_number;
-    if (num != null) {
-      const n = Number(num);
-      if (Number.isFinite(n)) myDestinationIds.add(n);
-    }
-  }
   const { data: pammRows } = await supabase
     .from("pamm_master")
-    .select("id, account_number")
+    .select("id")
     .eq("client_id", clientId);
-  for (const r of pammRows || []) {
-    myDestinationIds.add(Number(r.id));
-    const num = r.account_number;
-    if (num != null) {
-      const n = Number(num);
-      if (Number.isFinite(n)) myDestinationIds.add(n);
-    }
+  for (const r of pammRows ?? []) {
+    if (r.id != null) myDestinationIds.add(Number(r.id));
   }
 
-  // Step 3 – Extra: fee transactions where destination is one of my accounts (cap 100 ids, limit 500)
+  // Step 3 – Extra: fee transactions where destination is one of my PAMM ids (cap 100 ids, limit 500)
   const merged: RawTransactionRow[] = [...primary];
   if (myDestinationIds.size > 0) {
     const destList = Array.from(myDestinationIds).slice(0, 100);

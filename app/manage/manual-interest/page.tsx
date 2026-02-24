@@ -3,24 +3,41 @@ import ManualInterestClient from "./manual-interest-client";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminCard from "@/components/admin/AdminCard";
 
-export default async function ManageManualInterestPage() {
-  const { data: clientRows } = await supabase
-    .from("clients")
-    .select("investment_account_id")
-    .not("investment_account_id", "is", null);
-  const accountIds = (clientRows || [])
-    .map((c) => Number(c.investment_account_id))
-    .filter((id) => Number.isFinite(id));
-  let accountList: { account_id: number; account_number: string | null; client_name: string | null }[] = [];
-  if (accountIds.length > 0) {
-    const { data } = await supabase
-      .from("accounts")
-      .select("account_id, account_number, client_name")
-      .in("account_id", accountIds)
-      .not("platform", "ilike", "%demo%")
-      .order("account_number");
-    accountList = (data || []) as { account_id: number; account_number: string | null; client_name: string | null }[];
+const PAGE_SIZES = [20, 30, 50] as const;
+
+function getManualInterestFilter(q: string | null) {
+  const base = supabase
+    .from("accounts")
+    .select("account_id, account_number, client_name, email", { count: "exact" })
+    .or("type.eq.investment,type.is.null,product.eq.PAMM Investor")
+    .not("platform", "ilike", "%demo%")
+    .order("account_number");
+  if (q && q.trim()) {
+    const term = q.trim().replace(/\*/g, "");
+    if (term) {
+      return base.or(`account_number.ilike.*${term}*,client_name.ilike.*${term}*,email.ilike.*${term}*`);
+    }
   }
+  return base;
+}
+
+export default async function ManageManualInterestPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; pageSize?: string; q?: string }>;
+}) {
+  const params = await searchParams;
+  const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const pageSizeNum = parseInt(params.pageSize ?? "20", 10);
+  const pageSize: (typeof PAGE_SIZES)[number] = PAGE_SIZES.includes(pageSizeNum as (typeof PAGE_SIZES)[number]) ? (pageSizeNum as (typeof PAGE_SIZES)[number]) : 20;
+  const searchQuery = typeof params.q === "string" ? params.q : null;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const base = getManualInterestFilter(searchQuery);
+  const { data: accountRows, count: totalCount } = await base.range(from, to);
+  const accountList = (accountRows || []) as { account_id: number; account_number: string | null; client_name: string | null; email: string | null }[];
+
   return (
     <div>
       <AdminPageHeader
@@ -31,9 +48,14 @@ export default async function ManageManualInterestPage() {
         <ManualInterestClient
           accounts={accountList.map((a) => ({
             account_id: Number(a.account_id),
-            account_number: String(a.account_number),
+            account_number: String(a.account_number ?? ""),
             client_name: (a.client_name as string) || "",
+            email: (a.email as string) || "",
           }))}
+          totalCount={totalCount ?? 0}
+          page={page}
+          pageSize={pageSize}
+          searchQuery={searchQuery ?? ""}
         />
       </AdminCard>
     </div>

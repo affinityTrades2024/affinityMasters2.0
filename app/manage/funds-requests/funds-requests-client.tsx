@@ -32,6 +32,8 @@ export default function FundsRequestsClient() {
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [approvingDepositId, setApprovingDepositId] = useState<number | null>(null);
+  const [approveNotes, setApproveNotes] = useState("");
 
   async function fetchList() {
     setLoading(true);
@@ -53,14 +55,19 @@ export default function FundsRequestsClient() {
     fetchList();
   }, []);
 
-  async function handleAction(id: number, action: "approve" | "reject") {
+  async function handleAction(id: number, action: "approve" | "reject", adminNotes?: string | null) {
     setActingId(id);
     setError(null);
+    if (action === "approve" && approvingDepositId === id) setApprovingDepositId(null);
     try {
       const res = await fetch("/api/admin/funds-requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action }),
+        body: JSON.stringify({
+          id,
+          action,
+          ...(adminNotes !== undefined && { admin_notes: adminNotes || null }),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Action failed");
@@ -70,6 +77,11 @@ export default function FundsRequestsClient() {
     } finally {
       setActingId(null);
     }
+  }
+
+  function startApproveDeposit(id: number) {
+    setApprovingDepositId(id);
+    setApproveNotes("");
   }
 
   if (loading) {
@@ -143,23 +155,72 @@ export default function FundsRequestsClient() {
                   ? new Date(r.requestedAt).toLocaleString("en-US")
                   : "—"}
               </td>
-              <td className="px-4 py-3 flex gap-2">
-                <button
-                  type="button"
-                  disabled={actingId !== null}
-                  onClick={() => handleAction(r.id, "approve")}
-                  className={btnPrimary}
-                >
-                  {actingId === r.id ? "…" : "Approve"}
-                </button>
-                <button
-                  type="button"
-                  disabled={actingId !== null}
-                  onClick={() => handleAction(r.id, "reject")}
-                  className={btnDanger}
-                >
-                  {actingId === r.id ? "…" : "Reject"}
-                </button>
+              <td className="px-4 py-3 flex gap-2 flex-wrap items-center">
+                {r.type === "deposit" && approvingDepositId === r.id ? (
+                  <>
+                    <input
+                      type="text"
+                      value={approveNotes}
+                      onChange={(e) => setApproveNotes(e.target.value)}
+                      placeholder="Transaction details (optional)"
+                      className="rounded border border-slate-300 px-2 py-1.5 text-sm max-w-[200px]"
+                    />
+                    <button
+                      type="button"
+                      disabled={actingId !== null}
+                      onClick={() => handleAction(r.id, "approve", approveNotes)}
+                      className={btnPrimary}
+                    >
+                      {actingId === r.id ? "…" : "Confirm"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actingId !== null}
+                      onClick={() => setApprovingDepositId(null)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : r.type === "deposit" ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={actingId !== null || approvingDepositId != null}
+                      onClick={() => startApproveDeposit(r.id)}
+                      className={btnPrimary}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actingId !== null || approvingDepositId != null}
+                      onClick={() => handleAction(r.id, "reject")}
+                      className={btnDanger}
+                    >
+                      {actingId === r.id ? "…" : "Reject"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={actingId !== null}
+                      onClick={() => handleAction(r.id, "approve")}
+                      className={btnPrimary}
+                    >
+                      {actingId === r.id ? "…" : "Approve"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actingId !== null}
+                      onClick={() => handleAction(r.id, "reject")}
+                      className={btnDanger}
+                    >
+                      {actingId === r.id ? "…" : "Reject"}
+                    </button>
+                  </>
+                )}
               </td>
             </tr>
           ))}

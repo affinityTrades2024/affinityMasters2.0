@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS auth_users (
 ### 6.1 Data Source
 
 - **Primary:** `transactions` where `client_id = profile.id`, ordered by `operation_date` desc.
-- **Extra:** Rows from `transactions` where `type = 'fees'` and `destination_account_id` is in the set of this user’s account ids (from `accounts` + `pamm_master` for this client). These are “Partnership Fees” paid *to* this user but possibly stored under another `client_id`. Merge by transaction `id` to avoid duplicates.
+- **Extra:** Rows from `transactions` where `type = 'fees'` and `destination_account_id` is in the set of this user’s **PAMM account IDs only** (from `pamm_master.id` where `client_id = current user`). Do not use `accounts` or any account numbers in this set. Merge by transaction `id` to avoid duplicates.
 
 ### 6.2 Account Resolution (From / To)
 

@@ -210,7 +210,7 @@ export async function recordSkip(
 
 /**
  * Run daily interest for a given date (e.g. yesterday). Returns summary.
- * Only runs for designated investment accounts (one per client).
+ * Uses accounts table as source of truth: all investment accounts (type = 'investment' or type IS NULL or product = 'PAMM Investor', not demo).
  */
 export interface DailyInterestResult {
   credited: number;
@@ -226,16 +226,9 @@ export async function runDailyInterestForDate(
   const { data: accountRows } = await supabase
     .from("accounts")
     .select("account_id")
+    .or("type.eq.investment,type.is.null,product.eq.PAMM Investor")
     .not("platform", "ilike", "%demo%");
-  const allAccountIds = new Set((accountRows || []).map((r) => Number(r.account_id)));
-
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("investment_account_id")
-    .not("investment_account_id", "is", null);
-  const investmentAccountIds = (clients || [])
-    .map((c) => Number(c.investment_account_id))
-    .filter((id) => Number.isFinite(id) && allAccountIds.has(id));
+  const investmentAccountIds = (accountRows || []).map((r) => Number(r.account_id)).filter(Number.isFinite);
 
   const [y, m] = forDate.split("-").map(Number);
 

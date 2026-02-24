@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface AccountRow {
   account_id: number;
@@ -10,67 +11,70 @@ interface AccountRow {
   email?: string;
 }
 
-const PAGE_SIZE_OPTIONS = [30, 50, 100] as const;
+const PAGE_SIZE_OPTIONS = [20, 30, 50] as const;
 
 const inputClass =
   "w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500";
 const filterInputClass =
-  "w-full min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-xs placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500";
+  "min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-xs placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500";
 const btnPrimary =
   "rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50";
 const pageBtnClass =
   "rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed";
 
-function matchFilter(value: string, filter: string): boolean {
-  if (!filter.trim()) return true;
-  return value.toLowerCase().includes(filter.trim().toLowerCase());
+function buildUrl(params: { page?: number; pageSize?: number; q?: string }) {
+  const sp = new URLSearchParams();
+  if (params.page != null && params.page > 1) sp.set("page", String(params.page));
+  if (params.pageSize != null && params.pageSize !== 20) sp.set("pageSize", String(params.pageSize));
+  if (params.q != null && params.q.trim()) sp.set("q", params.q.trim());
+  const s = sp.toString();
+  return s ? `?${s}` : "";
 }
 
-const COLUMNS = [
-  { key: "account_number", label: "Account number" },
-  { key: "client_name", label: "Client" },
-  { key: "email", label: "Email" },
-  { key: "rate", label: "Monthly %" },
-] as const;
-
-export default function InterestRatesClient({ accounts }: { accounts: AccountRow[] }) {
+export default function InterestRatesClient({
+  accounts,
+  totalCount,
+  page,
+  pageSize,
+  searchQuery: initialSearch,
+}: {
+  accounts: AccountRow[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  searchQuery: string;
+}) {
+  const router = useRouter();
   const [rates, setRates] = useState<Record<number, number>>(
     Object.fromEntries(accounts.map((a) => [a.account_id, a.interest_rate_monthly]))
   );
   const [saving, setSaving] = useState<number | null>(null);
-  const [filters, setFilters] = useState<Record<string, string>>({});
-  const [pageSize, setPageSize] = useState<number>(50);
-  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filteredAccounts = useMemo(() => {
-    return accounts.filter((a) =>
-      COLUMNS.every((col) => {
-        const filter = filters[col.key] ?? "";
-        if (!filter.trim()) return true;
-        const val =
-          col.key === "rate"
-            ? String(rates[a.account_id] ?? a.interest_rate_monthly)
-            : col.key === "email"
-              ? (a.email ?? "—")
-              : (a[col.key as keyof AccountRow] ?? "");
-        return matchFilter(String(val), filter);
-      })
-    );
-  }, [accounts, filters, rates]);
+  useEffect(() => {
+    setSearchInput(initialSearch);
+  }, [initialSearch]);
 
-  const totalFiltered = filteredAccounts.length;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  const currentPage = Math.min(Math.max(1, page), totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const pageAccounts = useMemo(
-    () => filteredAccounts.slice(start, start + pageSize),
-    [filteredAccounts, start, pageSize]
-  );
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
-  const setFilter = (key: string, value: string) => {
-    setFilters((p) => ({ ...p, [key]: value }));
-    setPage(1);
-  };
+  function applySearch(q: string) {
+    router.push(buildUrl({ page: 1, pageSize, q: q.trim() || undefined }));
+  }
+
+  function handleSearchChange(value: string) {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => applySearch(value), 300);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const from = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, totalCount);
 
   async function save(accountId: number, value: number) {
     setSaving(accountId);
@@ -89,33 +93,38 @@ export default function InterestRatesClient({ accounts }: { accounts: AccountRow
     }
   }
 
-  const showingStart = totalFiltered === 0 ? 0 : start + 1;
-  const showingEnd = Math.min(start + pageSize, totalFiltered);
+  const COLUMNS = [
+    { key: "account_number", label: "Account number" },
+    { key: "client_name", label: "Client" },
+    { key: "email", label: "Email" },
+    { key: "rate", label: "Monthly %" },
+  ] as const;
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <input
+          type="text"
+          placeholder="Search by account, name, email…"
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className={`${filterInputClass} flex-1 min-w-0 max-w-sm`}
+          aria-label="Search accounts"
+        />
         <p className="text-sm text-slate-500">
-          {totalFiltered === accounts.length
-            ? `Total: ${accounts.length} account${accounts.length !== 1 ? "s" : ""}`
-            : `Showing ${filteredAccounts.length} of ${accounts.length} (filtered).`}{" "}
-          Type in filter boxes to narrow.
+          Showing {from}–{to} of {totalCount}
         </p>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-600">Rows per page:</span>
+          <span className="text-sm text-slate-600">Per page:</span>
           <div className="flex gap-1">
             {PAGE_SIZE_OPTIONS.map((size) => (
-              <button
+              <a
                 key={size}
-                type="button"
-                onClick={() => {
-                  setPageSize(size);
-                  setPage(1);
-                }}
+                href={buildUrl({ page: 1, pageSize: size, q: initialSearch.trim() || undefined })}
                 className={`${pageBtnClass} ${pageSize === size ? "border-amber-500 bg-amber-50 text-amber-800" : ""}`}
               >
                 {size}
-              </button>
+              </a>
             ))}
           </div>
         </div>
@@ -137,23 +146,18 @@ export default function InterestRatesClient({ accounts }: { accounts: AccountRow
                 Action
               </th>
             </tr>
-            <tr className="bg-slate-100/80">
-              {COLUMNS.map((col) => (
-                <th key={col.key} className="px-4 py-2">
-                  <input
-                    type="text"
-                    placeholder="Filter..."
-                    value={filters[col.key] ?? ""}
-                    onChange={(e) => setFilter(col.key, e.target.value)}
-                    className={filterInputClass}
-                  />
-                </th>
-              ))}
-              <th className="px-4 py-2" />
-            </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
-            {pageAccounts.map((a) => (
+            {accounts.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                  {initialSearch
+                    ? "No accounts match your search. Try a different term."
+                    : "No investment accounts available."}
+                </td>
+              </tr>
+            ) : (
+              accounts.map((a) => (
               <tr key={a.account_id} className="hover:bg-slate-50/50">
                 <td className="px-4 py-3 text-sm font-medium text-slate-900">
                   {a.account_number}
@@ -184,35 +188,34 @@ export default function InterestRatesClient({ accounts }: { accounts: AccountRow
                   </button>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-500">
-          Showing {showingStart}–{showingEnd} of {totalFiltered}
+          Showing {from}–{to} of {totalCount}
         </p>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            className={pageBtnClass}
+          <a
+            href={buildUrl({ page: page - 1, pageSize, q: initialSearch.trim() || undefined })}
+            className={page <= 1 ? "pointer-events-none text-slate-400 " + pageBtnClass : pageBtnClass}
+            aria-disabled={page <= 1}
           >
             Previous
-          </button>
+          </a>
           <span className="text-sm text-slate-600">
-            Page {currentPage} of {totalPages}
+            Page {page} of {totalPages}
           </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-            className={pageBtnClass}
+          <a
+            href={buildUrl({ page: page + 1, pageSize, q: initialSearch.trim() || undefined })}
+            className={page >= totalPages ? "pointer-events-none text-slate-400 " + pageBtnClass : pageBtnClass}
+            aria-disabled={page >= totalPages}
           >
             Next
-          </button>
+          </a>
         </div>
       </div>
     </div>

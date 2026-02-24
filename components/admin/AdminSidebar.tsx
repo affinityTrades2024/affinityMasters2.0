@@ -12,7 +12,6 @@ import {
   BiCalendar,
   BiCheckCircle,
   BiLeftArrowAlt,
-  BiCog,
   BiMenu,
   BiX,
   BiTransferAlt,
@@ -20,12 +19,23 @@ import {
 } from "react-icons/bi";
 import { HiOutlineCurrencyDollar } from "react-icons/hi";
 
-const navItems = [
+const navItems: Array<
+  | { href: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean }
+  | { label: string; icon: React.ComponentType<{ className?: string }>; children: { href: string; label: string }[] }
+> = [
   { href: "/manage", label: "Dashboard", icon: BiBarChartAlt2, exact: true },
   { href: "/manage/pamm", label: "Investment accounts", icon: BiBox },
   { href: "/manage/interest-rates", label: "Interest Rates", icon: BiPieChartAlt2 },
   { href: "/manage/funds-rates", label: "Funds rates", icon: BiTransferAlt },
-  { href: "/manage/funds-requests", label: "Funds requests", icon: BiWallet },
+  {
+    label: "Requests",
+    icon: BiWallet,
+    children: [
+      { href: "/manage/funds-requests", label: "Fund Requests" },
+      { href: "/manage/funds-requests/pending-withdrawals", label: "Disbursement Requests" },
+      { href: "/manage/funds-requests/history", label: "Request History" },
+    ],
+  },
   { href: "/manage/partnership-earnings", label: "Partnership Earnings", icon: BiDollar },
   { href: "/manage/manual-interest", label: "Manual Interest", icon: BiCalendar },
   { href: "/manage/skip-review", label: "Skip Review", icon: BiCheckCircle },
@@ -50,6 +60,42 @@ export default function AdminSidebar() {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
           {navItems.map((item) => {
+            if ("children" in item) {
+              const isParentActive = item.children.some((c) => pathname === c.href);
+              const Icon = item.icon;
+              return (
+                <li key={item.label}>
+                  <div
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${
+                      isParentActive ? "text-amber-400" : "text-slate-300"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {item.label}
+                  </div>
+                  <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-slate-600 pl-3">
+                    {item.children.map((child) => {
+                      const isActive = pathname === child.href;
+                      return (
+                        <li key={child.href}>
+                          <Link
+                            href={child.href}
+                            onClick={() => setOpen(false)}
+                            className={`block rounded py-1.5 pl-2 text-sm ${
+                              isActive
+                                ? "text-amber-400 font-medium"
+                                : "text-slate-400 hover:text-slate-200"
+                            }`}
+                          >
+                            {child.label}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              );
+            }
             const isActive = item.exact
               ? pathname === item.href
               : pathname.startsWith(item.href);

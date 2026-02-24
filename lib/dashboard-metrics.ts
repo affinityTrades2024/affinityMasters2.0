@@ -26,6 +26,7 @@ export function computeDashboardMetrics(
   displayRateInr?: number
 ): DashboardMetrics {
   const rate = displayRateInr ?? USD_INR_RATE;
+  // Partnership earnings = sum of credit amounts for transactions classified as Partnership Fees.
   const partnershipEarnings = transactions
     .filter((t) => t.type === "Partnership Fees")
     .reduce((s, t) => s + t.creditDetails.amount, 0);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { decodeSession } from "@/lib/auth";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/transactions", "/team", "/pamm", "/profile", "/admin", "/manage", "/wallets", "/funds", "/register"];
+const PROTECTED_PREFIXES = ["/dashboard", "/transactions", "/team", "/pamm", "/profile", "/admin", "/manage", "/wallets", "/funds"];
 const AUTH_PREFIXES = ["/auth"];
 
 export async function middleware(request: NextRequest) {
@@ -16,6 +16,9 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     return NextResponse.redirect(new URL("/manage", request.url));
   }
+  if (pathname === "/registration" && session) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
   if (isProtected && !session) {
     const login = new URL("/auth/login", request.url);
     login.searchParams.set("from", pathname);
@@ -28,5 +31,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/transactions/:path*", "/team/:path*", "/pamm/:path*", "/profile/:path*", "/admin/:path*", "/manage/:path*", "/wallets/:path*", "/funds", "/funds/:path*", "/register/:path*", "/auth/:path*"],
+  matcher: ["/dashboard/:path*", "/transactions/:path*", "/team/:path*", "/pamm/:path*", "/profile/:path*", "/admin/:path*", "/manage/:path*", "/wallets/:path*", "/funds", "/funds/:path*", "/registration", "/auth/:path*"],
 };
