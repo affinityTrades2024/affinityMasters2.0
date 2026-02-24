@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   BiBarChartAlt2,
@@ -10,7 +11,6 @@ import {
   BiGroup,
   BiUserCircle,
 } from "react-icons/bi";
-import { HiOutlineCurrencyDollar } from "react-icons/hi";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BiBarChartAlt2 },
@@ -96,9 +96,13 @@ export default function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   return (
     <aside className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col border-r border-slate-700/50 bg-slate-800 shadow-xl">
       <div className="flex h-16 items-center gap-3 border-b border-slate-700/50 px-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/20">
-          <HiOutlineCurrencyDollar className="h-5 w-5 text-amber-400" />
-        </div>
+        <Image
+          src="/images/square_logo.png"
+          alt="Affinity Trades"
+          width={36}
+          height={36}
+          className="h-9 w-9 shrink-0 object-contain"
+        />
         <span className="font-semibold text-white">Affinity Trades</span>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">

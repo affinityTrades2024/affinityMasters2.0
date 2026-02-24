@@ -1,0 +1,19 @@
+#tree {
+    width: 100%;
+    height: 100%;
+}
+.node.zero rect {
+    fill: #6e0b9c;
+}
+.node.parent rect {
+    fill: #d85d00;
+}
+
+.bg-affinity-primary{
+    background-color: #81ecec;
+    fill: #81ecec;
+}
+
+.text-affinity-primary{
+    color: #636e72;
+}

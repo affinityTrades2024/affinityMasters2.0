@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Affinity Trades CRM",
   description: "Client dashboard for investment accounts",
+  icons: { icon: "/images/favicon.png" },
 };
 
 export default function RootLayout({

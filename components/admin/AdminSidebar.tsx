@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   BiBarChartAlt2,
@@ -37,9 +38,13 @@ export default function AdminSidebar() {
   const navContent = (
     <>
       <div className="flex h-16 items-center gap-3 border-b border-slate-700/50 px-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/20">
-          <BiCog className="h-5 w-5 text-amber-400" />
-        </div>
+        <Image
+          src="/images/square_logo.png"
+          alt="Affinity Trades"
+          width={36}
+          height={36}
+          className="h-9 w-9 shrink-0 object-contain"
+        />
         <span className="font-semibold text-white">Admin</span>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">

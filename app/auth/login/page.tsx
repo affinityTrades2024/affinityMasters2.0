@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BiEnvelope, BiLock, BiShow, BiHide } from "react-icons/bi";
-import { HiOutlineCurrencyDollar } from "react-icons/hi";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -41,9 +40,11 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-800 shadow-lg mb-4">
-            <HiOutlineCurrencyDollar className="h-9 w-9 text-amber-400" />
-          </div>
+          <img
+            src="/images/square_logo.png"
+            alt="Affinity Trades"
+            className="h-16 w-16 mx-auto object-contain mb-4"
+          />
           <h1 className="text-2xl font-bold text-gray-900">Affinity Trades</h1>
           <p className="text-gray-500 mt-1">CRM</p>
         </div>

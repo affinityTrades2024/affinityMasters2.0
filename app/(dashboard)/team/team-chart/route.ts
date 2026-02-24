@@ -77,11 +77,19 @@ export async function GET(request: NextRequest) {
     rootName = (accRow?.client_name as string) || "Investment Account";
   }
 
-  const { data: childrenRows } = await supabase.rpc("get_child_accounts", {
-    myid: masterAccountId,
-  });
+  const { data: childrenRows, error: rpcError } = await supabase.rpc(
+    "get_child_accounts",
+    { myid: masterAccountId }
+  );
+  if (rpcError) {
+    return NextResponse.json(
+      { error: "Failed to load team data: " + (rpcError.message || "Unknown error") },
+      { status: 500 }
+    );
+  }
   const childrenList = (childrenRows || []) as Array<{
     account_id: number;
+    pid?: number | null;
     account_number: string;
     name: string;
     client_id: number;
@@ -161,22 +169,35 @@ export async function GET(request: NextRequest) {
   );
   const rootLevel = computeLevel(rootBalance, childrenSum);
 
-  const childNodes: TeamChartNode[] = childrenList.map((c) => {
-    const bal = balanceByAccountId.get(c.account_id) ?? 0;
-    const pf = getPartnershipFees(String(c.account_number));
-    return {
-      accountId: c.account_id,
-      accountNumber: String(c.account_number),
-      name: (c.name as string) || "—",
-      balance: bal,
-      partnershipFees: pf,
-      balanceLabel: formatMoney(bal),
-      partnershipLabel: formatMoney(pf),
-      tags: bal === 0 ? ["zero"] : [],
-      level: -1,
-      levelName: "",
-    };
-  });
+  const hasPid = childrenList.some((c) => c.pid != null);
+
+  function buildChildNodes(parentId: number): TeamChartNode[] {
+    const list = hasPid
+      ? childrenList.filter((c) => c.pid === parentId)
+      : childrenList;
+    if (!hasPid && parentId !== masterAccountId) return [];
+    return list.map((c) => {
+      const bal = balanceByAccountId.get(c.account_id) ?? 0;
+      const pf = getPartnershipFees(String(c.account_number));
+      const node: TeamChartNode = {
+        accountId: c.account_id,
+        accountNumber: String(c.account_number),
+        name: (c.name as string) || "—",
+        balance: bal,
+        partnershipFees: pf,
+        balanceLabel: formatMoney(bal),
+        partnershipLabel: formatMoney(pf),
+        tags: bal === 0 ? ["zero"] : [],
+        level: -1,
+        levelName: "",
+      };
+      const childList = hasPid ? buildChildNodes(c.account_id) : [];
+      if (childList.length > 0) node.children = childList;
+      return node;
+    });
+  }
+
+  const childNodes = buildChildNodes(masterAccountId);
 
   const root: TeamChartNode = {
     accountId: masterAccountId,
@@ -192,7 +213,17 @@ export async function GET(request: NextRequest) {
     children: childNodes.length > 0 ? childNodes : undefined,
   };
 
-  return NextResponse.json({ root });
+  const levelLabel =
+    rootLevel >= 0 ? (LEVEL_NAMES[rootLevel] ?? "") : "";
+  const lastModified = new Date().toLocaleDateString(undefined, {
+    dateStyle: "medium",
+  });
+
+  return NextResponse.json({
+    root,
+    level: levelLabel,
+    lastModified,
+  });
 }
 
 function formatMoney(n: number): string {

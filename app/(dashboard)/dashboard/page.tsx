@@ -66,11 +66,18 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-gray-500">
-          Welcome back, {profile.nickname || profile.info.givenName || profile.email}.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-gray-500">
+            Welcome back, {profile.nickname || profile.info.givenName || profile.email}.
+          </p>
+        </div>
+        <img
+          src="/images/rectangle_logo.svg"
+          alt="Affinity Trades"
+          className="h-10 w-auto object-contain"
+        />
       </div>
 
       {/* Row 1: Balance, Total Profit, Own Profit, Partnership (like template) */}
