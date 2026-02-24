@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/server";
 import { getFundsRates } from "@/lib/funds-rates";
+import { getInvestmentAccount } from "@/lib/investment-account";
 import InfoBox from "@/components/InfoBox";
 import { BiDollar, BiDownArrowCircle, BiUpArrowCircle } from "react-icons/bi";
 
@@ -16,15 +17,11 @@ export default async function FundsPage() {
   const clientId = profile.id;
 
   const [
-    { data: accounts },
+    investmentAccount,
     { data: requests },
     rates,
   ] = await Promise.all([
-    supabase
-      .from("accounts")
-      .select("account_id, balance")
-      .eq("client_id", clientId)
-      .not("platform", "ilike", "%demo%"),
+    getInvestmentAccount(clientId),
     supabase
       .from("funds_requests")
       .select("id, type, amount_usd, amount_inr, status, requested_at")
@@ -33,8 +30,7 @@ export default async function FundsPage() {
     getFundsRates(),
   ]);
 
-  const totalBalanceUsd =
-    accounts?.reduce((sum, a) => sum + Number(a.balance || 0), 0) ?? 0;
+  const totalBalanceUsd = investmentAccount ? investmentAccount.balance : 0;
   const formatUsd = (n: number) =>
     "$" +
     n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

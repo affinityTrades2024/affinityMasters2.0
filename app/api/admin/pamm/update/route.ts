@@ -19,6 +19,31 @@ export async function POST(request: Request) {
   if (!allowed.includes(column)) {
     return NextResponse.json({ error: "Invalid column" }, { status: 400 });
   }
+  if (column === "client_id") {
+    const newClientId = value === "" || value === null ? null : parseInt(String(value), 10);
+    if (newClientId != null) {
+      const { data: current } = await supabase
+        .from("pamm_master")
+        .select("pid")
+        .eq("id", id)
+        .maybeSingle();
+      const isTopLevel = current?.pid == null;
+      if (isTopLevel) {
+        const { data: existing } = await supabase
+          .from("pamm_master")
+          .select("id")
+          .eq("client_id", newClientId)
+          .is("pid", null)
+          .maybeSingle();
+        if (existing && Number(existing.id) !== Number(id)) {
+          return NextResponse.json(
+            { error: "That client already has an investment account (one top-level row per client)." },
+            { status: 400 }
+          );
+        }
+      }
+    }
+  }
   const { error } = await supabase
     .from("pamm_master")
     .update({ [column]: value })

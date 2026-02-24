@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase/server";
 import { INTERNAL_ACCOUNTS } from "@/lib/config";
+import { getInvestmentAccountId } from "@/lib/investment-account";
 import type { TransactionDisplay, AccountDisplay } from "@/lib/transactions-types";
 
 export interface AccountMapEntry {
@@ -65,40 +66,27 @@ export async function buildAccountMaps(clientId: number): Promise<{
   const byNumber = new Map<string, AccountMapEntry>();
   const selfAccountNumbers = new Set<string>();
 
-  const { data: accounts } = await supabase
-    .from("accounts")
-    .select("account_id, account_number, client_name, platform")
-    .eq("client_id", clientId);
-  for (const a of accounts || []) {
-    const id = Number(a.account_id);
-    const num = String(a.account_number || "").trim();
-    const entry: AccountMapEntry = {
-      account_id: id,
-      account_number: num,
-      client_name: (a.client_name as string) || "",
-      platform: (a.platform as string) || "",
-    };
-    byId.set(id, entry);
-    if (num) byNumber.set(num, entry);
-    if (num) selfAccountNumbers.add(num);
-  }
-
-  const { data: pamm } = await supabase
-    .from("pamm_master")
-    .select("id, account_number, name")
-    .eq("client_id", clientId);
-  for (const p of pamm || []) {
-    const id = Number(p.id);
-    const num = String(p.account_number || "").trim();
-    const entry: AccountMapEntry = {
-      account_id: id,
-      account_number: num,
-      client_name: (p.name as string) || "",
-      platform: "PAMM",
-    };
-    if (!byId.has(id)) byId.set(id, entry);
-    if (num && !byNumber.has(num)) byNumber.set(num, entry);
-    if (num) selfAccountNumbers.add(num);
+  const investmentAccountId = await getInvestmentAccountId(clientId);
+  if (investmentAccountId != null) {
+    const { data: account } = await supabase
+      .from("accounts")
+      .select("account_id, account_number, client_name, platform")
+      .eq("account_id", investmentAccountId)
+      .eq("client_id", clientId)
+      .maybeSingle();
+    if (account) {
+      const id = Number(account.account_id);
+      const num = String(account.account_number || "").trim();
+      const entry: AccountMapEntry = {
+        account_id: id,
+        account_number: num,
+        client_name: (account.client_name as string) || "",
+        platform: (account.platform as string) || "Investment Account",
+      };
+      byId.set(id, entry);
+      if (num) byNumber.set(num, entry);
+      if (num) selfAccountNumbers.add(num);
+    }
   }
 
   return { byId, byNumber, selfAccountNumbers };
@@ -146,17 +134,9 @@ export async function getTransactionsForClient(clientId: number): Promise<{
     .eq("client_id", clientId)
     .order("operation_date", { ascending: false });
 
-  const { data: accounts } = await supabase
-    .from("accounts")
-    .select("account_id")
-    .eq("client_id", clientId);
-  const { data: pamm } = await supabase
-    .from("pamm_master")
-    .select("id")
-    .eq("client_id", clientId);
+  const investmentAccountId = await getInvestmentAccountId(clientId);
   const myAccountIds = new Set<number>();
-  for (const a of accounts || []) myAccountIds.add(Number(a.account_id));
-  for (const p of pamm || []) myAccountIds.add(Number(p.id));
+  if (investmentAccountId != null) myAccountIds.add(investmentAccountId);
 
   const { data: feeToMe } = await supabase
     .from("transactions")

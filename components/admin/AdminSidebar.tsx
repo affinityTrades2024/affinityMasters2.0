@@ -21,7 +21,7 @@ import { HiOutlineCurrencyDollar } from "react-icons/hi";
 
 const navItems = [
   { href: "/manage", label: "Dashboard", icon: BiBarChartAlt2, exact: true },
-  { href: "/manage/pamm", label: "PAMM Master", icon: BiBox },
+  { href: "/manage/pamm", label: "Investment accounts", icon: BiBox },
   { href: "/manage/interest-rates", label: "Interest Rates", icon: BiPieChartAlt2 },
   { href: "/manage/funds-rates", label: "Funds rates", icon: BiTransferAlt },
   { href: "/manage/funds-requests", label: "Funds requests", icon: BiWallet },

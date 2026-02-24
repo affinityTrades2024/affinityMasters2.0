@@ -20,6 +20,22 @@ export async function POST(request: Request) {
       row[col] = v === "" || v === null ? null : String(v);
     }
   }
+  const clientId = row.client_id != null ? Number(row.client_id) : null;
+  const pid = row.pid != null ? Number(row.pid) : null;
+  if (clientId != null && pid == null) {
+    const { data: existing } = await supabase
+      .from("pamm_master")
+      .select("id")
+      .eq("client_id", clientId)
+      .is("pid", null)
+      .maybeSingle();
+    if (existing) {
+      return NextResponse.json(
+        { error: "This client already has an investment account (one top-level row per client)." },
+        { status: 400 }
+      );
+    }
+  }
   const { data, error } = await supabase.from("pamm_master").insert(row).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ row: data });

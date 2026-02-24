@@ -4,6 +4,14 @@ import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminCard from "@/components/admin/AdminCard";
 
 export default async function ManageInterestRatesPage() {
+  const { data: clientRows } = await supabase
+    .from("clients")
+    .select("investment_account_id")
+    .not("investment_account_id", "is", null);
+  const investmentAccountIds = (clientRows || [])
+    .map((c) => Number(c.investment_account_id))
+    .filter((id) => Number.isFinite(id));
+
   const pageSize = 1000;
   let from = 0;
   type AccountRow = {
@@ -15,17 +23,20 @@ export default async function ManageInterestRatesPage() {
   };
   const allAccounts: AccountRow[] = [];
 
-  while (true) {
-    const { data: chunk } = await supabase
-      .from("accounts")
-      .select("account_id, account_number, client_name, interest_rate_monthly, client_id")
-      .not("platform", "ilike", "%demo%")
-      .order("account_id")
-      .range(from, from + pageSize - 1);
-    if (!chunk?.length) break;
-    allAccounts.push(...(chunk as AccountRow[]));
-    if (chunk.length < pageSize) break;
-    from += pageSize;
+  if (investmentAccountIds.length > 0) {
+    while (true) {
+      const { data: chunk } = await supabase
+        .from("accounts")
+        .select("account_id, account_number, client_name, interest_rate_monthly, client_id")
+        .in("account_id", investmentAccountIds)
+        .not("platform", "ilike", "%demo%")
+        .order("account_id")
+        .range(from, from + pageSize - 1);
+      if (!chunk?.length) break;
+      allAccounts.push(...(chunk as AccountRow[]));
+      if (chunk.length < pageSize) break;
+      from += pageSize;
+    }
   }
 
   const accounts = allAccounts;

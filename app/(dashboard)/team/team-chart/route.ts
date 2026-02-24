@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getProfileByEmail } from "@/lib/profile";
+import { getInvestmentAccountId } from "@/lib/investment-account";
 import { supabase } from "@/lib/supabase/server";
 import {
   LEVEL_0,
@@ -50,17 +51,30 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { data: rootRow } = await supabase
-    .from("pamm_master")
-    .select("*")
-    .eq("account_number", accountNumber)
-    .eq("client_id", profile.id)
-    .maybeSingle();
-  if (!rootRow) {
+  const investmentAccountId = await getInvestmentAccountId(profile.id);
+  if (investmentAccountId === null || investmentAccountId !== masterAccountId) {
     return NextResponse.json(
-      { error: "PAMM account not found" },
+      { error: "Investment account not found" },
       { status: 404 }
     );
+  }
+
+  const { data: pammRow } = await supabase
+    .from("pamm_master")
+    .select("name")
+    .eq("id", masterAccountId)
+    .eq("client_id", profile.id)
+    .maybeSingle();
+  let rootName: string;
+  if (pammRow?.name != null) {
+    rootName = String(pammRow.name);
+  } else {
+    const { data: accRow } = await supabase
+      .from("accounts")
+      .select("client_name")
+      .eq("account_id", masterAccountId)
+      .maybeSingle();
+    rootName = (accRow?.client_name as string) || "Investment Account";
   }
 
   const { data: childrenRows } = await supabase.rpc("get_child_accounts", {
@@ -167,7 +181,7 @@ export async function GET(request: NextRequest) {
   const root: TeamChartNode = {
     accountId: masterAccountId,
     accountNumber,
-    name: (rootRow.name as string) || "—",
+    name: rootName,
     balance: rootBalance,
     partnershipFees: rootPartnership,
     balanceLabel: formatMoney(rootBalance),

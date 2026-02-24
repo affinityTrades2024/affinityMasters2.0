@@ -210,6 +210,7 @@ export async function recordSkip(
 
 /**
  * Run daily interest for a given date (e.g. yesterday). Returns summary.
+ * Only runs for designated investment accounts (one per client).
  */
 export interface DailyInterestResult {
   credited: number;
@@ -221,14 +222,24 @@ export async function runDailyInterestForDate(
   forDate: string
 ): Promise<DailyInterestResult> {
   const result: DailyInterestResult = { credited: 0, skipped: 0, errors: [] };
-  const { data: accounts } = await supabase
+
+  const { data: accountRows } = await supabase
     .from("accounts")
     .select("account_id")
     .not("platform", "ilike", "%demo%");
+  const allAccountIds = new Set((accountRows || []).map((r) => Number(r.account_id)));
+
+  const { data: clients } = await supabase
+    .from("clients")
+    .select("investment_account_id")
+    .not("investment_account_id", "is", null);
+  const investmentAccountIds = (clients || [])
+    .map((c) => Number(c.investment_account_id))
+    .filter((id) => Number.isFinite(id) && allAccountIds.has(id));
+
   const [y, m] = forDate.split("-").map(Number);
 
-  for (const row of accounts || []) {
-    const accountId = Number(row.account_id);
+  for (const accountId of investmentAccountIds) {
     try {
       const existing = await alreadyCreditedForDate(accountId, forDate);
       if (existing.credited) {

@@ -9,6 +9,7 @@ import {
 } from "@/lib/transactions";
 import { computeDashboardMetrics } from "@/lib/dashboard-metrics";
 import { getFundsRates } from "@/lib/funds-rates";
+import { getInvestmentAccount } from "@/lib/investment-account";
 import InfoBox from "@/components/InfoBox";
 import {
   BiDollar,
@@ -28,14 +29,10 @@ export default async function DashboardPage() {
 
   const clientId = profile.id;
 
-  const { data: accounts } = await supabase
-    .from("accounts")
-    .select("account_id, account_number, balance, currency, platform, product")
-    .eq("client_id", clientId)
-    .not("platform", "ilike", "%demo%");
-
-  const totalBalanceUsd =
-    accounts?.reduce((sum, a) => sum + Number(a.balance || 0), 0) ?? 0;
+  const investmentAccount = await getInvestmentAccount(clientId);
+  const totalBalanceUsd = investmentAccount
+    ? investmentAccount.balance
+    : 0;
 
   const { transactions: rawTxs } = await getTransactionsForClient(clientId);
   const { byId, byNumber, selfAccountNumbers } =

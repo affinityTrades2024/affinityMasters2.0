@@ -3,28 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 
-export interface DepositAccountOption {
-  accountId: number;
-  label: string;
-  accountNumber: string;
-  platform: string;
-}
-
 const inputClass =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500";
 const btnPrimary =
   "rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50";
 
 interface Props {
-  accounts: DepositAccountOption[];
+  account: { accountId: number; label: string; accountNumber: string } | null;
   depositInrPerUsd: number;
 }
 
-export default function DepositFormClient({ accounts, depositInrPerUsd }: Props) {
+export default function DepositFormClient({ account, depositInrPerUsd }: Props) {
   const [amountUsd, setAmountUsd] = useState("");
-  const [accountId, setAccountId] = useState<string>(
-    accounts.length > 0 ? String(accounts[0].accountId) : ""
-  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -35,8 +25,8 @@ export default function DepositFormClient({ accounts, depositInrPerUsd }: Props)
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (accounts.length === 0) {
-      setError("No accounts available.");
+    if (!account) {
+      setError("No investment account linked.");
       return;
     }
     const amt = parseFloat(amountUsd);
@@ -44,17 +34,12 @@ export default function DepositFormClient({ accounts, depositInrPerUsd }: Props)
       setError("Enter a valid amount (USD).");
       return;
     }
-    const accId = parseInt(accountId, 10);
-    if (!Number.isInteger(accId) || !accounts.some((a) => a.accountId === accId)) {
-      setError("Select a valid account.");
-      return;
-    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/funds/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amountUsd: amt, accountId: accId }),
+        body: JSON.stringify({ amountUsd: amt, accountId: account.accountId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -86,11 +71,13 @@ export default function DepositFormClient({ accounts, depositInrPerUsd }: Props)
     );
   }
 
-  if (accounts.length === 0) {
+  if (!account) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
-        <p className="font-medium">No accounts available.</p>
-        <p className="mt-1 text-sm">You need at least one account to request a deposit.</p>
+        <p className="font-medium">No investment account linked.</p>
+        <p className="mt-1 text-sm">
+          Contact support to link your investment account before requesting a deposit.
+        </p>
       </div>
     );
   }
@@ -118,20 +105,10 @@ export default function DepositFormClient({ accounts, depositInrPerUsd }: Props)
         )}
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          Credit to account
-        </label>
-        <select
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          className={inputClass}
-        >
-          {accounts.map((a, index) => (
-            <option key={`${a.platform}-${a.accountId}-${index}`} value={a.accountId}>
-              {a.label} ({a.accountNumber}) — {a.platform}
-            </option>
-          ))}
-        </select>
+        <p className="text-sm font-medium text-slate-700">Credit to</p>
+        <p className="mt-0.5 text-sm text-slate-600">
+          {account.label} ({account.accountNumber}) — Investment Account
+        </p>
       </div>
       {error && (
         <p className="text-sm text-red-600">{error}</p>

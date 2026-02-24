@@ -28,9 +28,9 @@ const navItems = [
   { href: "/transactions", label: "Transaction History", icon: BiHistory },
   {
     href: "/pamm/accounts",
-    label: "PAMM",
+    label: "Investment Account",
     icon: BiBox,
-    children: [{ href: "/pamm/accounts", label: "Account List" }],
+    children: [{ href: "/pamm/accounts", label: "My Account" }],
   },
   { href: "/team", label: "My Team", icon: BiGroup },
   { href: "/team/referral", label: "Referrals", icon: BiGroup },

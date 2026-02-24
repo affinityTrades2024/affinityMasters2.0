@@ -11,8 +11,8 @@ export default async function ManagePammPage() {
   return (
     <div>
       <AdminPageHeader
-        title="PAMM Master"
-        description="Manage PAMM master records. Click a cell to edit, or add a new row."
+        title="Investment accounts"
+        description="Manage investment account records (one per client). Click a cell to edit, or add a new row."
       />
       <AdminCard>
         <PammMasterClient initialRows={rows || []} />

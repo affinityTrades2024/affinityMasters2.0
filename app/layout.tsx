@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Affinity Trades CRM",
-  description: "Client dashboard for PAMM investors",
+  description: "Client dashboard for investment accounts",
 };
 
 export default function RootLayout({

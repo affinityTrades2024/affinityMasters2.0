@@ -3,38 +3,31 @@
 import { useState } from "react";
 import Link from "next/link";
 
-export interface WithdrawalAccountOption {
-  accountId: number;
-  label: string;
-  accountNumber: string;
-  platform: string;
-  availableUsd: number;
-}
-
 const inputClass =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500";
 const btnPrimary =
   "rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50";
 
 interface Props {
-  accounts: WithdrawalAccountOption[];
+  account: {
+    accountId: number;
+    label: string;
+    accountNumber: string;
+    availableUsd: number;
+  } | null;
   withdrawalInrPerUsd: number;
 }
 
 export default function WithdrawalFormClient({
-  accounts,
+  account,
   withdrawalInrPerUsd,
 }: Props) {
   const [amountUsd, setAmountUsd] = useState("");
-  const [accountId, setAccountId] = useState<string>(
-    accounts.length > 0 ? String(accounts[0].accountId) : ""
-  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const selectedAccount = accounts.find((a) => a.accountId === parseInt(accountId, 10));
-  const available = selectedAccount?.availableUsd ?? 0;
+  const available = account?.availableUsd ?? 0;
   const amount = parseFloat(amountUsd) || 0;
   const amountInr = amount * withdrawalInrPerUsd;
   const exceedsBalance = amount > available;
@@ -42,8 +35,8 @@ export default function WithdrawalFormClient({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (accounts.length === 0) {
-      setError("No accounts with balance available.");
+    if (!account) {
+      setError("No investment account linked.");
       return;
     }
     const amt = parseFloat(amountUsd);
@@ -55,17 +48,12 @@ export default function WithdrawalFormClient({
       setError("Amount exceeds available balance.");
       return;
     }
-    const accId = parseInt(accountId, 10);
-    if (!Number.isInteger(accId) || !accounts.some((a) => a.accountId === accId)) {
-      setError("Select a valid account.");
-      return;
-    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/funds/withdraw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amountUsd: amt, accountId: accId }),
+        body: JSON.stringify({ amountUsd: amt, accountId: account.accountId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -97,11 +85,13 @@ export default function WithdrawalFormClient({
     );
   }
 
-  if (accounts.length === 0) {
+  if (!account) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
-        <p className="font-medium">No accounts with balance.</p>
-        <p className="mt-1 text-sm">You need an account with available balance to withdraw.</p>
+        <p className="font-medium">No investment account linked.</p>
+        <p className="mt-1 text-sm">
+          Contact support to link your investment account before requesting a withdrawal.
+        </p>
       </div>
     );
   }
@@ -109,21 +99,14 @@ export default function WithdrawalFormClient({
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          From account
-        </label>
-        <select
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          className={inputClass}
-        >
-          {accounts.map((a, index) => (
-            <option key={`${a.accountId}-${index}`} value={a.accountId}>
-              {a.label} ({a.accountNumber}) — Available: $
-              {a.availableUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </option>
-          ))}
-        </select>
+        <p className="text-sm font-medium text-slate-700">From account</p>
+        <p className="mt-0.5 text-sm text-slate-600">
+          {account.label} ({account.accountNumber}) — Investment Account
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          Available: $
+          {available.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </p>
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -139,10 +122,6 @@ export default function WithdrawalFormClient({
           className={inputClass}
           placeholder="0.00"
         />
-        <p className="mt-1 text-sm text-slate-600">
-          Available: $
-          {available.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </p>
         {amount > 0 && (
           <p className="mt-1 text-sm text-slate-600">
             ≈ ₹ {amountInr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}

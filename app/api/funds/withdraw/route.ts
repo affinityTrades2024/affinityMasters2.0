@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { getProfileByEmail } from "@/lib/profile";
 import { supabase } from "@/lib/supabase/server";
 import { getFundsRates } from "@/lib/funds-rates";
+import { getInvestmentAccountId } from "@/lib/investment-account";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -28,6 +29,20 @@ export async function POST(request: Request) {
   }
 
   const clientId = profile.id;
+  const investmentAccountId = await getInvestmentAccountId(clientId);
+
+  if (investmentAccountId === null) {
+    return NextResponse.json(
+      { error: "No investment account linked" },
+      { status: 403 }
+    );
+  }
+  if (accountId !== investmentAccountId) {
+    return NextResponse.json(
+      { error: "Account does not belong to you" },
+      { status: 403 }
+    );
+  }
 
   const { data: accountRow, error: accError } = await supabase
     .from("accounts")

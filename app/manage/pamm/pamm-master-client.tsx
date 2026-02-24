@@ -117,7 +117,7 @@ export default function PammMasterClient({
 
       {adding && (
         <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">New PAMM master row</h3>
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">New investment account row</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-4">
             {COLS.filter((c) => c !== "id").map((col) => (
               <div key={col}>
