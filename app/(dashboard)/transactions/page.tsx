@@ -16,12 +16,11 @@ export default async function TransactionsPage() {
   if (!profile) redirect("/auth/login");
 
   const { transactions: rawTxs } = await getTransactionsForClient(profile.id);
-  const { byId, byNumber, selfAccountNumbers } =
-    await buildAccountMaps(profile.id);
+  const { byId, selfAccountNumbers } =
+    await buildAccountMaps(profile.id, rawTxs);
   const transactions = toDisplayTransactions(
     rawTxs,
     byId,
-    byNumber,
     selfAccountNumbers
   );
 

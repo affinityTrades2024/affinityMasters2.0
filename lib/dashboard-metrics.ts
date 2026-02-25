@@ -88,7 +88,7 @@ export function computeDashboardMetrics(
   const dailyProfit = transactions
     .filter(
       (t) =>
-        t.type === "Daily Interest" && t.createTime.startsWith(today)
+        t.type === "Daily Profit" && t.createTime.startsWith(today)
     )
     .reduce((s, t) => s + t.creditDetails.amount, 0);
 

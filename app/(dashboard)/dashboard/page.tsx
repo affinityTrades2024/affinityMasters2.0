@@ -35,12 +35,11 @@ export default async function DashboardPage() {
     : 0;
 
   const { transactions: rawTxs } = await getTransactionsForClient(clientId);
-  const { byId, byNumber, selfAccountNumbers } =
-    await buildAccountMaps(clientId);
+  const { byId, selfAccountNumbers } =
+    await buildAccountMaps(clientId, rawTxs);
   const transactions = toDisplayTransactions(
     rawTxs,
     byId,
-    byNumber,
     selfAccountNumbers
   );
   const rates = await getFundsRates();

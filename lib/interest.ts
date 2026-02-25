@@ -138,16 +138,24 @@ async function getNextTransactionId(): Promise<number> {
 /**
  * Credit daily interest to one account for forDate. Creates transaction and updates account balance.
  * Caller should have checked alreadyCreditedForDate first.
+ * Sets client_id from the account so the transaction appears in the user's transaction list.
  */
 export async function creditDailyInterest(
   accountId: number,
   forDate: string,
   amount: number
 ): Promise<{ transactionId: number }> {
+  const { data: account } = await supabase
+    .from("accounts")
+    .select("client_id")
+    .eq("account_id", accountId)
+    .maybeSingle();
+  const clientId = account?.client_id != null ? Number(account.client_id) : null;
+
   const nextId = await getNextTransactionId();
   const { error: txError } = await supabase.from("transactions").insert({
     id: nextId,
-    client_id: null,
+    client_id: clientId,
     type: "daily_interest",
     source_account_id: MASTER_ACCOUNT_ID,
     destination_account_id: accountId,
@@ -227,7 +235,8 @@ export async function runDailyInterestForDate(
     .from("accounts")
     .select("account_id")
     .or("type.eq.investment,type.is.null,product.eq.PAMM Investor")
-    .not("platform", "ilike", "%demo%");
+    .not("platform", "ilike", "%demo%")
+    .eq("interest_credit_enabled", true);
   const investmentAccountIds = (accountRows || []).map((r) => Number(r.account_id)).filter(Number.isFinite);
 
   const [y, m] = forDate.split("-").map(Number);

@@ -25,7 +25,15 @@ const navItems: Array<
 > = [
   { href: "/manage", label: "Dashboard", icon: BiBarChartAlt2, exact: true },
   { href: "/manage/pamm", label: "Investment accounts", icon: BiBox },
-  { href: "/manage/interest-rates", label: "Interest Rates", icon: BiPieChartAlt2 },
+  {
+    label: "Profit Sharing",
+    icon: BiPieChartAlt2,
+    children: [
+      { href: "/manage/interest-rates", label: "Interest Rates" },
+      { href: "/manage/profit-sharing/daily-report", label: "Daily Profit Report" },
+      { href: "/manage/profit-sharing/transactions", label: "Profit Sharing Transactions" },
+    ],
+  },
   { href: "/manage/funds-rates", label: "Funds rates", icon: BiTransferAlt },
   {
     label: "Requests",

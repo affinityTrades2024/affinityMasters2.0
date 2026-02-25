@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getProfileByEmail } from "@/lib/profile";
+import { isAdmin } from "@/lib/admin";
 import {
   buildAccountMaps,
-  getTransactionsForClient,
+  getTransactionsByType,
   toDisplayTransactions,
 } from "@/lib/transactions";
 
@@ -12,14 +12,13 @@ export async function GET() {
   if (!session) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
-  const profile = await getProfileByEmail(session.email);
-  if (!profile) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  const admin = await isAdmin(session.email);
+  if (!admin) {
+    return new NextResponse("Forbidden", { status: 403 });
   }
 
-  const { transactions: rawTxs } = await getTransactionsForClient(profile.id);
-  const { byId, selfAccountNumbers } =
-    await buildAccountMaps(profile.id, rawTxs);
+  const rawTxs = await getTransactionsByType("daily_interest");
+  const { byId, selfAccountNumbers } = await buildAccountMaps(0, rawTxs);
   const transactions = toDisplayTransactions(
     rawTxs,
     byId,
@@ -59,7 +58,7 @@ export async function GET() {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="transactions.csv"',
+      "Content-Disposition": 'attachment; filename="profit-sharing-transactions.csv"',
     },
   });
 }

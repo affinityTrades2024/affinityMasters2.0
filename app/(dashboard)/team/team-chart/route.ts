@@ -121,10 +121,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const accountNumbers = [
-    accountNumber,
-    ...childrenList.map((c) => String(c.account_number || "")),
-  ];
   const { data: partnershipTxs } = await supabase
     .from("transactions")
     .select("source_account_id, destination_amount")
@@ -139,30 +135,10 @@ export async function GET(request: NextRequest) {
       (partnershipByDebitAccount.get(key) || 0) + amt
     );
   }
-  const { data: accountsByNumber } = await supabase
-    .from("accounts")
-    .select("account_id, account_number")
-    .in("account_number", accountNumbers);
-  const accountIdByNumber = new Map<string, number>();
-  for (const a of accountsByNumber || []) {
-    accountIdByNumber.set(String(a.account_number), Number(a.account_id));
-  }
-  for (const p of childrenList || []) {
-    const num = String(p.account_number);
-    if (!accountIdByNumber.has(num)) accountIdByNumber.set(num, p.account_id);
-  }
-  function getPartnershipFees(accountNumber: string): number {
-    const id = accountIdByNumber.get(accountNumber);
-    if (id == null) return 0;
-    return (
-      partnershipByDebitAccount.get(String(id)) ||
-      partnershipByDebitAccount.get(accountNumber) ||
-      0
-    );
-  }
 
   const rootBalance = balanceByAccountId.get(masterAccountId) ?? 0;
-  const rootPartnership = getPartnershipFees(accountNumber);
+  const rootPartnership =
+    partnershipByDebitAccount.get(String(masterAccountId)) ?? 0;
   const childrenSum = childrenList.reduce(
     (s, c) => s + (balanceByAccountId.get(c.account_id) ?? 0),
     0
@@ -178,7 +154,7 @@ export async function GET(request: NextRequest) {
     if (!hasPid && parentId !== masterAccountId) return [];
     return list.map((c) => {
       const bal = balanceByAccountId.get(c.account_id) ?? 0;
-      const pf = getPartnershipFees(String(c.account_number));
+      const pf = partnershipByDebitAccount.get(String(c.account_id)) ?? 0;
       const node: TeamChartNode = {
         accountId: c.account_id,
         accountNumber: String(c.account_number),

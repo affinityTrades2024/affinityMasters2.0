@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase/server";
 import { INTERNAL_ACCOUNTS } from "@/lib/config";
-import { getInvestmentAccountId } from "@/lib/investment-account";
 import type { TransactionDisplay, AccountDisplay } from "@/lib/transactions-types";
 
 export interface AccountMapEntry {
@@ -14,22 +13,18 @@ function normalizeDbType(type: string): string {
   const t = (type || "").toLowerCase().trim();
   if (t === "payout") return "withdrawal";
   if (["rewards", "fee", "fees", "performance_fee"].includes(t)) return "fees";
-  if (t === "daily_interest") return "Daily Interest";
+  if (t === "daily_interest") return "Daily Profit";
   if (t === "partnership_fee_admin") return "Partnership Fees";
   return type || "unknown";
 }
 
+/** Resolve source/destination for display only by account ID (never by account_number). */
 function resolveAccount(
   accountId: number | null,
-  accountNumber: string | null,
-  byId: Map<number, AccountMapEntry>,
-  byNumber: Map<string, AccountMapEntry>
+  byId: Map<number, AccountMapEntry>
 ): AccountDisplay {
   const id = accountId != null ? accountId : null;
-  const num = accountNumber != null ? String(accountNumber).trim() : null;
-  let entry: AccountMapEntry | undefined;
-  if (id != null) entry = byId.get(id);
-  if (!entry && num) entry = byNumber.get(num);
+  const entry = id != null ? byId.get(id) : undefined;
   if (entry) {
     return {
       accountId: entry.account_id,
@@ -50,46 +45,102 @@ function resolveAccount(
   }
   return {
     accountId: id ?? 0,
-    accountNumber: num ?? "—",
+    accountNumber: "—",
     clientName: "External account",
-    caption: num ?? "—",
+    caption: "—",
     platform: "—",
   };
 }
 
-export async function buildAccountMaps(clientId: number): Promise<{
+/** Build byId from transaction source/dest IDs; selfAccountNumbers for fee reclassification only. */
+export async function buildAccountMaps(
+  clientId: number,
+  transactionRows: RawTransactionRow[]
+): Promise<{
   byId: Map<number, AccountMapEntry>;
-  byNumber: Map<string, AccountMapEntry>;
   selfAccountNumbers: Set<string>;
 }> {
   const byId = new Map<number, AccountMapEntry>();
-  const byNumber = new Map<string, AccountMapEntry>();
   const selfAccountNumbers = new Set<string>();
 
-  const investmentAccountId = await getInvestmentAccountId(clientId);
-  if (investmentAccountId != null) {
-    const { data: account } = await supabase
-      .from("accounts")
-      .select("account_id, account_number, client_name, platform")
-      .eq("account_id", investmentAccountId)
-      .eq("client_id", clientId)
-      .maybeSingle();
-    if (account) {
-      const id = Number(account.account_id);
-      const num = String(account.account_number || "").trim();
-      const entry: AccountMapEntry = {
+  const allIds = new Set<number>();
+  for (const r of transactionRows) {
+    if (r.source_account_id != null) allIds.add(Number(r.source_account_id));
+    if (r.destination_account_id != null)
+      allIds.add(Number(r.destination_account_id));
+  }
+  if (129 in INTERNAL_ACCOUNTS) allIds.add(129);
+
+  const idList = Array.from(allIds);
+  if (idList.length > 0) {
+    const [accountsRes, pammRes] = await Promise.all([
+      supabase
+        .from("accounts")
+        .select("account_id, account_number, client_name, platform")
+        .in("account_id", idList),
+      supabase
+        .from("pamm_master")
+        .select("id, account_number, name")
+        .in("id", idList),
+    ]);
+    for (const a of accountsRes.data ?? []) {
+      const id = Number(a.account_id);
+      const num = String(a.account_number ?? "").trim();
+      byId.set(id, {
         account_id: id,
         account_number: num,
-        client_name: (account.client_name as string) || "",
-        platform: (account.platform as string) || "Investment Account",
-      };
-      byId.set(id, entry);
-      if (num) byNumber.set(num, entry);
-      if (num) selfAccountNumbers.add(num);
+        client_name: (a.client_name as string) || "",
+        platform: (a.platform as string) || "Investment Account",
+      });
+    }
+    for (const p of pammRes.data ?? []) {
+      const id = Number(p.id);
+      if (byId.has(id)) continue;
+      const num = String(p.account_number ?? "").trim();
+      byId.set(id, {
+        account_id: id,
+        account_number: num,
+        client_name: (p.name as string) || "",
+        platform: "PAMM",
+      });
     }
   }
 
-  return { byId, byNumber, selfAccountNumbers };
+  const { data: selfAccounts } = await supabase
+    .from("accounts")
+    .select("account_id, account_number, client_name, platform")
+    .eq("client_id", clientId);
+  const { data: selfPamm } = await supabase
+    .from("pamm_master")
+    .select("id, account_number, name")
+    .eq("client_id", clientId);
+
+  for (const a of selfAccounts ?? []) {
+    const id = Number(a.account_id);
+    const num = String(a.account_number ?? "").trim();
+    if (num) selfAccountNumbers.add(num);
+    if (!byId.has(id))
+      byId.set(id, {
+        account_id: id,
+        account_number: num,
+        client_name: (a.client_name as string) || "",
+        platform: (a.platform as string) || "Investment Account",
+      });
+  }
+  for (const p of selfPamm ?? []) {
+    const id = Number(p.id);
+    const num = String(p.account_number ?? "").trim();
+    if (num) selfAccountNumbers.add(num);
+    if (!byId.has(id))
+      byId.set(id, {
+        account_id: id,
+        account_number: num,
+        client_name: (p.name as string) || "",
+        platform: "PAMM",
+      });
+  }
+
+  return { byId, selfAccountNumbers };
 }
 
 /**
@@ -124,6 +175,28 @@ export interface RawTransactionRow {
   operation_date: string;
 }
 
+/** Fetch all transactions of a given type (admin use). Paginates to get full list. */
+export async function getTransactionsByType(
+  type: string
+): Promise<RawTransactionRow[]> {
+  const result: RawTransactionRow[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data: chunk } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("type", type)
+      .order("operation_date", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (!chunk?.length) break;
+    result.push(...(chunk as RawTransactionRow[]));
+    if (chunk.length < pageSize) break;
+    from += pageSize;
+  }
+  return result;
+}
+
 export async function getTransactionsForClient(clientId: number): Promise<{
   transactions: RawTransactionRow[];
   accountIds: number[];
@@ -147,15 +220,17 @@ export async function getTransactionsForClient(clientId: number): Promise<{
 
   const seenIds = new Set(primary.map((r) => r.id));
 
-  // Step 2 – Destination IDs for extra fee query: ONLY pamm_master.id for this client.
-  // Do not add accounts.account_id, accounts.account_number, or pamm_master.account_number.
+  // Step 2 – Destination IDs for extra fee query: pamm_master.id + accounts.account_id for this client (never account_number).
   const myDestinationIds = new Set<number>();
-  const { data: pammRows } = await supabase
-    .from("pamm_master")
-    .select("id")
-    .eq("client_id", clientId);
-  for (const r of pammRows ?? []) {
+  const [pammRes, accountRes] = await Promise.all([
+    supabase.from("pamm_master").select("id").eq("client_id", clientId),
+    supabase.from("accounts").select("account_id").eq("client_id", clientId),
+  ]);
+  for (const r of pammRes.data ?? []) {
     if (r.id != null) myDestinationIds.add(Number(r.id));
+  }
+  for (const r of accountRes.data ?? []) {
+    if (r.account_id != null) myDestinationIds.add(Number(r.account_id));
   }
 
   // Step 3 – Extra: fee transactions where destination is one of my PAMM ids (cap 100 ids, limit 500)
@@ -191,16 +266,13 @@ export async function getTransactionsForClient(clientId: number): Promise<{
 export function toDisplayTransactions(
   rows: RawTransactionRow[],
   byId: Map<number, AccountMapEntry>,
-  byNumber: Map<string, AccountMapEntry>,
   selfAccountNumbers: Set<string>
 ): TransactionDisplay[] {
   return rows.map((r) => {
     const destId = r.destination_account_id;
     const srcId = r.source_account_id;
-    const destNum = r.destination_account_id != null ? String(r.destination_account_id) : null;
-    const srcNum = r.source_account_id != null ? String(r.source_account_id) : null;
-    const creditAcc = resolveAccount(destId, destNum, byId, byNumber);
-    const debitAcc = resolveAccount(srcId, srcNum, byId, byNumber);
+    const creditAcc = resolveAccount(destId, byId);
+    const debitAcc = resolveAccount(srcId, byId);
     const normalizedType = normalizeDbType(r.type);
     const displayType = reclassifyFees(
       normalizedType,
@@ -211,6 +283,10 @@ export function toDisplayTransactions(
     const destAmt = Number(r.destination_amount ?? 0);
     const srcAmt = Number(r.source_amount ?? 0);
     const displayAmount = destAmt > 0 ? destAmt : srcAmt;
+    const creditAccount =
+      displayType === "Daily Profit"
+        ? { ...creditAcc, platform: "Investment Account" }
+        : creditAcc;
     return {
       transactionId: r.id,
       type: displayType,
@@ -220,7 +296,7 @@ export function toDisplayTransactions(
       creditDetails: {
         amount: displayAmount,
         currency: { alphabeticCode: (r.destination_currency as string) || "USD" },
-        account: creditAcc,
+        account: creditAccount,
       },
       debitDetails: {
         amount: srcAmt,

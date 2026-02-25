@@ -9,6 +9,7 @@ interface AccountRow {
   client_name: string;
   interest_rate_monthly: number;
   email?: string;
+  interest_credit_enabled: boolean;
 }
 
 const PAGE_SIZE_OPTIONS = [20, 30, 50] as const;
@@ -48,7 +49,11 @@ export default function InterestRatesClient({
   const [rates, setRates] = useState<Record<number, number>>(
     Object.fromEntries(accounts.map((a) => [a.account_id, a.interest_rate_monthly]))
   );
+  const [interestEnabled, setInterestEnabled] = useState<Record<number, boolean>>(
+    Object.fromEntries(accounts.map((a) => [a.account_id, a.interest_credit_enabled]))
+  );
   const [saving, setSaving] = useState<number | null>(null);
+  const [toggling, setToggling] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState(initialSearch);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,6 +95,25 @@ export default function InterestRatesClient({
       alert(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function toggleInterestCredit(accountId: number) {
+    const current = interestEnabled[accountId] ?? true;
+    const next = !current;
+    setToggling(accountId);
+    try {
+      const res = await fetch("/api/admin/interest-credit-enable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId, enabled: next }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      setInterestEnabled((p) => ({ ...p, [accountId]: next }));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setToggling(null);
     }
   }
 
@@ -143,6 +167,9 @@ export default function InterestRatesClient({
                 </th>
               ))}
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Interest credit
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Action
               </th>
             </tr>
@@ -150,7 +177,7 @@ export default function InterestRatesClient({
           <tbody className="divide-y divide-slate-200 bg-white">
             {accounts.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
                   {initialSearch
                     ? "No accounts match your search. Try a different term."
                     : "No investment accounts available."}
@@ -176,6 +203,24 @@ export default function InterestRatesClient({
                     }
                     className={inputClass}
                   />
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    disabled={toggling === a.account_id}
+                    onClick={() => toggleInterestCredit(a.account_id)}
+                    className={
+                      (interestEnabled[a.account_id] ?? true)
+                        ? "rounded-lg border border-slate-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                        : "rounded-lg border border-slate-300 bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
+                    }
+                  >
+                    {toggling === a.account_id
+                      ? "…"
+                      : (interestEnabled[a.account_id] ?? true)
+                        ? "On"
+                        : "Off"}
+                  </button>
                 </td>
                 <td className="px-4 py-3">
                   <button

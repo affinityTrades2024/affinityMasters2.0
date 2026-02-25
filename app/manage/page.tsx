@@ -1,76 +1,29 @@
-import { supabase } from "@/lib/supabase/server";
 import Link from "next/link";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminStatCard from "@/components/admin/AdminStatCard";
+import DashboardCardsClient from "./dashboard-cards-client";
 import {
-  BiDollar,
-  BiUser,
-  BiTrendingUp,
   BiBox,
   BiPieChartAlt2,
+  BiDollar,
   BiCalendar,
   BiCheckCircle,
   BiTransferAlt,
   BiWallet,
 } from "react-icons/bi";
 
-export default async function ManageDashboardPage() {
-  const { data: depositData } = await supabase
-    .from("transactions")
-    .select("destination_amount")
-    .eq("type", "deposit");
-  const totalDeposits = (depositData || []).reduce(
-    (s, r) => s + Number(r.destination_amount ?? 0),
-    0
-  );
+const quickLinks = [
+  { href: "/manage/pamm", label: "Investment accounts", icon: BiBox },
+  { href: "/manage/interest-rates", label: "Interest Rates", icon: BiPieChartAlt2 },
+  { href: "/manage/profit-sharing/transactions", label: "Profit Sharing Transactions", icon: BiPieChartAlt2 },
+  { href: "/manage/profit-sharing/daily-report", label: "Daily Profit Report", icon: BiPieChartAlt2 },
+  { href: "/manage/funds-rates", label: "Funds rates", icon: BiTransferAlt },
+  { href: "/manage/funds-requests", label: "Funds requests", icon: BiWallet },
+  { href: "/manage/partnership-earnings", label: "Partnership Earnings", icon: BiDollar },
+  { href: "/manage/manual-interest", label: "Manual Interest", icon: BiCalendar },
+  { href: "/manage/skip-review", label: "Skip Review", icon: BiCheckCircle },
+];
 
-  const { count: accountsCount } = await supabase
-    .from("accounts")
-    .select("account_id", { count: "exact", head: true })
-    .not("platform", "ilike", "%demo%");
-
-  const { data: interestData } = await supabase
-    .from("transactions")
-    .select("destination_amount")
-    .eq("type", "daily_interest");
-  const { data: partnershipData } = await supabase
-    .from("transactions")
-    .select("destination_amount")
-    .eq("type", "partnership_fee_admin");
-  const totalInterest = (interestData || []).reduce(
-    (s, r) => s + Number(r.destination_amount ?? 0),
-    0
-  );
-  const totalPartnership = (partnershipData || []).reduce(
-    (s, r) => s + Number(r.destination_amount ?? 0),
-    0
-  );
-  const totalProfitGiven = totalInterest + totalPartnership;
-
-  const formatUsd = (n: number) =>
-    "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  /** Abbreviated USD for large numbers (e.g. $100K, $10M), full value for tooltip */
-  function formatUsdShort(n: number): { display: string; full: string } {
-    const full = formatUsd(n);
-    if (n >= 1e9) return { display: "$" + (n / 1e9).toFixed(2) + "B", full };
-    if (n >= 1e6) return { display: "$" + (n / 1e6).toFixed(2) + "M", full };
-    if (n >= 1e3) return { display: "$" + (n / 1e3).toFixed(2) + "K", full };
-    return { display: full, full };
-  }
-
-  const totalDepositsFormatted = formatUsdShort(totalDeposits);
-
-  const quickLinks = [
-    { href: "/manage/pamm", label: "Investment accounts", icon: BiBox },
-    { href: "/manage/interest-rates", label: "Interest Rates", icon: BiPieChartAlt2 },
-    { href: "/manage/funds-rates", label: "Funds rates", icon: BiTransferAlt },
-    { href: "/manage/funds-requests", label: "Funds requests", icon: BiWallet },
-    { href: "/manage/partnership-earnings", label: "Partnership Earnings", icon: BiDollar },
-    { href: "/manage/manual-interest", label: "Manual Interest", icon: BiCalendar },
-    { href: "/manage/skip-review", label: "Skip Review", icon: BiCheckCircle },
-  ];
-
+export default function ManageDashboardPage() {
   return (
     <div>
       <AdminPageHeader
@@ -82,29 +35,7 @@ export default async function ManageDashboardPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
           Overview
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <AdminStatCard
-            title="Total deposits"
-            value={totalDepositsFormatted.display}
-            valueTitle={totalDepositsFormatted.full}
-            icon={<BiDollar className="h-6 w-6" />}
-            variant="primary"
-          />
-          <AdminStatCard
-            title="Total accounts"
-            value={String(accountsCount ?? 0)}
-            subValue="excluding demo"
-            icon={<BiUser className="h-6 w-6" />}
-            variant="slate"
-          />
-          <AdminStatCard
-            title="Total profit given"
-            value={formatUsd(totalProfitGiven)}
-            subValue="interest + partnership"
-            icon={<BiTrendingUp className="h-6 w-6" />}
-            variant="success"
-          />
-        </div>
+        <DashboardCardsClient />
       </section>
 
       <section>

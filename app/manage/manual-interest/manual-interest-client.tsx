@@ -82,21 +82,22 @@ export default function ManualInterestClient({
       setMessage({ type: "error", text: "Select at least one account." });
       return;
     }
+    const payload = mode === "all" ? { forDate, all: true } : { forDate, accountIds: idsToRun };
     setLoading(true);
     setMessage(null);
     try {
       const res = await fetch("/api/admin/manual-interest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          mode === "all" ? { forDate, all: true } : { forDate, accountIds: idsToRun }
-        ),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
+      let text = `Credited: ${data.credited ?? 0}, skipped: ${data.skipped ?? 0}.`;
+      if (data.hint) text += ` ${data.hint}`;
       setMessage({
         type: "success",
-        text: `Credited: ${data.credited ?? 0}, skipped: ${data.skipped ?? 0}.`,
+        text,
       });
     } catch (e) {
       setMessage({

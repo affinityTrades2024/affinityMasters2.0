@@ -8,7 +8,7 @@ const PAGE_SIZES = [20, 30, 50] as const;
 function getInterestRatesFilter(q: string | null) {
   const base = supabase
     .from("accounts")
-    .select("account_id, account_number, client_name, interest_rate_monthly, email", { count: "exact" })
+    .select("account_id, account_number, client_name, interest_rate_monthly, email, interest_credit_enabled", { count: "exact" })
     .or("type.eq.investment,type.is.null,product.eq.PAMM Investor")
     .not("platform", "ilike", "%demo%")
     .order("account_id");
@@ -40,6 +40,7 @@ export default async function ManageInterestRatesPage({
     client_name: string | null;
     interest_rate_monthly: number | null;
     email: string | null;
+    interest_credit_enabled: boolean | null;
   };
   const base = getInterestRatesFilter(searchQuery);
   const { data: rows, count: totalCount } = await base.range(from, to);
@@ -60,6 +61,7 @@ export default async function ManageInterestRatesPage({
               client_name: (a.client_name as string) || "",
               interest_rate_monthly: a.interest_rate_monthly != null ? Number(a.interest_rate_monthly) : 3,
               email: (a.email as string) || "—",
+              interest_credit_enabled: a.interest_credit_enabled !== false,
             }))
           }
           totalCount={totalCount ?? 0}

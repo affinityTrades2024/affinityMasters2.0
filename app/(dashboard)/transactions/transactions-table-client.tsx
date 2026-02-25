@@ -5,16 +5,29 @@ import type { TransactionDisplay } from "@/lib/transactions-types";
 
 const PAGE_SIZES = [10, 20, 30, 50, 100] as const;
 
+/** Format date for display; use fixed locale/options so server and client match (avoids hydration mismatch). */
+function formatDateTime(isoString: string): string {
+  return new Date(isoString).toLocaleString("en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
 function getCellValue(t: TransactionDisplay, key: string): string {
   switch (key) {
     case "transactionId":
       return String(t.transactionId);
     case "createTime":
-      return t.createTime ? new Date(t.createTime).toLocaleString() : "";
+      return t.createTime ? formatDateTime(t.createTime) : "";
     case "type":
       return t.type;
     case "amount":
-      return t.creditDetails.amount.toLocaleString(undefined, {
+      return t.creditDetails.amount.toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       });
@@ -143,7 +156,7 @@ export default function TransactionsTableClient({
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                       {t.createTime
-                        ? new Date(t.createTime).toLocaleString()
+                        ? formatDateTime(t.createTime)
                         : "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
@@ -151,7 +164,7 @@ export default function TransactionsTableClient({
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-right font-medium text-gray-900">
                       $
-                      {t.creditDetails.amount.toLocaleString(undefined, {
+                      {t.creditDetails.amount.toLocaleString("en-US", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
