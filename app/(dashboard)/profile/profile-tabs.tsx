@@ -29,8 +29,8 @@ export default function ProfileTabs({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-      <nav className="border-b border-gray-200">
-        <ul className="flex gap-4">
+      <nav className="border-b border-gray-200 overflow-x-auto">
+        <ul className="flex flex-nowrap gap-4 min-w-max px-1">
           {TABS.map(({ id, label }) => (
             <li key={id}>
               <Link

@@ -4,13 +4,17 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { BiBell, BiFullscreen, BiChevronDown, BiCog, BiLogOut } from "react-icons/bi";
 
+interface AppHeaderProps {
+  profileName: string;
+  profileEmail: string;
+  onMenuToggle?: () => void;
+}
+
 export default function AppHeader({
   profileName,
   profileEmail,
-}: {
-  profileName: string;
-  profileEmail: string;
-}) {
+  onMenuToggle,
+}: AppHeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -26,7 +30,8 @@ export default function AppHeader({
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 shadow-sm">
       <button
         type="button"
-        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 md:hidden"
+        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
+        onClick={onMenuToggle}
         aria-label="Toggle menu"
       >
         <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

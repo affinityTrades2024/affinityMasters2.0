@@ -34,11 +34,13 @@ function NavLink({
   label,
   icon: Icon,
   subItems,
+  onClick,
 }: {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   subItems?: { href: string; label: string }[];
+  onClick?: () => void;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || (subItems?.some((c) => pathname === c.href) ?? false);
@@ -49,6 +51,7 @@ function NavLink({
         <>
           <Link
             href={href}
+            onClick={onClick}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
               isActive
                 ? "bg-slate-600/50 text-white"
@@ -63,6 +66,7 @@ function NavLink({
               <li key={c.href}>
                 <Link
                   href={c.href}
+                  onClick={onClick}
                   className={`block rounded py-1.5 pl-2 text-sm ${
                     pathname === c.href
                       ? "text-amber-400 font-medium"
@@ -78,6 +82,7 @@ function NavLink({
       ) : (
         <Link
           href={href}
+          onClick={onClick}
           className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
             isActive
               ? "bg-slate-600/50 text-white"
@@ -92,46 +97,72 @@ function NavLink({
   );
 }
 
-export default function Sidebar({ isAdmin }: { isAdmin: boolean }) {
+interface SidebarProps {
+  isAdmin: boolean;
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ isAdmin, open, onClose }: SidebarProps) {
+  const isOpen = open ?? true;
+
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col border-r border-slate-700/50 bg-slate-800 shadow-xl">
-      <div className="flex h-16 items-center gap-3 border-b border-slate-700/50 px-4">
-        <Image
-          src="/images/square_logo.png"
-          alt="Affinity Trades"
-          width={36}
-          height={36}
-          className="h-9 w-9 shrink-0 object-contain"
+    <>
+      {/* Mobile overlay */}
+      {onClose && isOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-slate-900/50 lg:hidden"
+          onClick={onClose}
+          aria-hidden
         />
-        <span className="font-semibold text-white">Affinity Trades</span>
-      </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <ul className="space-y-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-              subItems={item.children}
-            />
-          ))}
-          {isAdmin && (
-            <li className="mt-4 border-t border-slate-700/50 pt-4">
-              <Link
-                href="/manage"
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-slate-700/50 hover:text-amber-300"
-              >
-                <BiUserCircle className="h-5 w-5" />
-                Admin
-              </Link>
-            </li>
-          )}
-        </ul>
-      </nav>
-      <div className="border-t border-slate-700/50 px-4 py-3 text-center text-xs text-slate-500">
-        Affinity Trades CRM v2.0
-      </div>
-    </aside>
+      )}
+
+      {/* Sidebar: drawer on mobile, fixed on desktop */}
+      <aside
+        className={`fixed left-0 top-0 z-30 flex h-screen w-64 flex-col border-r border-slate-700/50 bg-slate-800 shadow-xl transition-transform duration-200 lg:translate-x-0 ${
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        <div className="flex h-16 items-center gap-3 border-b border-slate-700/50 px-4">
+          <Image
+            src="/images/square_logo.png"
+            alt="Affinity Trades"
+            width={36}
+            height={36}
+            className="h-9 w-9 shrink-0 object-contain"
+          />
+          <span className="font-semibold text-white">Affinity Trades</span>
+        </div>
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <ul className="space-y-1">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                subItems={item.children}
+                onClick={onClose}
+              />
+            ))}
+            {isAdmin && (
+              <li className="mt-4 border-t border-slate-700/50 pt-4">
+                <Link
+                  href="/manage"
+                  onClick={onClose}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-slate-700/50 hover:text-amber-300"
+                >
+                  <BiUserCircle className="h-5 w-5" />
+                  Admin
+                </Link>
+              </li>
+            )}
+          </ul>
+        </nav>
+        <div className="border-t border-slate-700/50 px-4 py-3 text-center text-xs text-slate-500">
+          Affinity Trades CRM v2.0
+        </div>
+      </aside>
+    </>
   );
 }

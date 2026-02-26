@@ -27,13 +27,13 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Login failed");
+        setLoading(false);
         return;
       }
       router.push("/dashboard");
       router.refresh();
     } catch {
       setError("Login failed");
-    } finally {
       setLoading(false);
     }
   }
