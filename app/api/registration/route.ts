@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/server";
+import { createNotification } from "@/lib/notifications";
 
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_UPPER = /[A-Z]/;
@@ -85,6 +86,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Nickname already taken" }, { status: 409 });
       }
       return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    try {
+      await createNotification({
+        recipientType: "admin",
+        recipientId: null,
+        type: "new_user_signup",
+        title: "New user signed up",
+        link: "/manage",
+        payload: { nickname, email: emailClean },
+      });
+    } catch (e) {
+      console.error("[notifications] new_user_signup:", e);
     }
 
     return NextResponse.json({ ok: true, clientId: data?.clientId, accountNumber: data?.accountNumber });

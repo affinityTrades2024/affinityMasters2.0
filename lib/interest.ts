@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase/server";
 import { DEFAULT_INTEREST_RATE_MONTHLY } from "@/lib/config";
+import { createNotification } from "@/lib/notifications";
 
 const MASTER_ACCOUNT_ID = 129;
 
@@ -187,6 +188,21 @@ export async function creditDailyInterest(
     status: "credited",
   });
   if (logError) throw new Error(`Insert log: ${logError.message}`);
+
+  if (clientId != null) {
+    try {
+      await createNotification({
+        recipientType: "user",
+        recipientId: clientId,
+        type: "daily_interest_credited",
+        title: "Daily interest credited",
+        link: "/transactions",
+        payload: { amount, date: forDate, transactionId: nextId },
+      });
+    } catch (e) {
+      console.error("[notifications] daily_interest_credited:", e);
+    }
+  }
 
   return { transactionId: nextId };
 }

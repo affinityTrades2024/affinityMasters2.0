@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { BiBell, BiFullscreen, BiChevronDown, BiCog, BiLogOut } from "react-icons/bi";
+import { BiFullscreen, BiChevronDown, BiCog, BiLogOut } from "react-icons/bi";
+import NotificationBell from "@/components/NotificationBell";
 
 interface AppHeaderProps {
   profileName: string;
@@ -40,16 +41,7 @@ export default function AppHeader({
       </button>
       <div className="flex-1" />
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="relative rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          aria-label="Notifications"
-        >
-          <BiBell className="h-5 w-5" />
-          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-medium text-white">
-            0
-          </span>
-        </button>
+        <NotificationBell />
         <button
           type="button"
           className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"

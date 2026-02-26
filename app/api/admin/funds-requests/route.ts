@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
+import { createNotification } from "@/lib/notifications";
 
 const MASTER_ACCOUNT_ID = 129;
 
@@ -135,6 +136,28 @@ export async function PATCH(request: Request) {
     if (disbError) {
       return NextResponse.json({ error: disbError.message }, { status: 500 });
     }
+    try {
+      const { data: reqRow } = await supabase
+        .from("funds_requests")
+        .select("client_id, transaction_id, amount_usd")
+        .eq("id", id)
+        .single();
+      if (reqRow?.client_id != null) {
+        await createNotification({
+          recipientType: "user",
+          recipientId: reqRow.client_id,
+          type: "withdrawal_disbursed",
+          title: "Withdraw request disbursed",
+          link: "/funds",
+          payload: {
+            transactionId: reqRow.transaction_id,
+            amount: Number(reqRow.amount_usd ?? 0),
+          },
+        });
+      }
+    } catch (e) {
+      console.error("[notifications] withdrawal_disbursed:", e);
+    }
     return NextResponse.json({ ok: true });
   }
 
@@ -160,6 +183,23 @@ export async function PATCH(request: Request) {
       .eq("id", id);
     if (updError) {
       return NextResponse.json({ error: updError.message }, { status: 500 });
+    }
+    try {
+      const notifType = row.type === "deposit" ? "deposit_rejected" : "withdrawal_rejected";
+      const title =
+        row.type === "deposit"
+          ? "Deposit request rejected"
+          : "Withdraw request rejected";
+      await createNotification({
+        recipientType: "user",
+        recipientId: clientId,
+        type: notifType,
+        title,
+        link: "/funds",
+        payload: { amount },
+      });
+    } catch (e) {
+      console.error("[notifications] reject:", e);
     }
     return NextResponse.json({ ok: true });
   }
@@ -266,6 +306,39 @@ export async function PATCH(request: Request) {
     if (updReq) {
       return NextResponse.json({ error: updReq.message }, { status: 500 });
     }
+
+    try {
+      if (row.type === "deposit") {
+        await createNotification({
+          recipientType: "user",
+          recipientId: clientId,
+          type: "deposit_approved",
+          title: "Deposit request approved",
+          link: "/funds",
+          payload: { transactionId: nextTxId, amount },
+        });
+      } else {
+        await createNotification({
+          recipientType: "user",
+          recipientId: clientId,
+          type: "withdrawal_approved",
+          title: "Withdraw request approved",
+          link: "/funds",
+          payload: { transactionId: nextTxId, amount },
+        });
+        await createNotification({
+          recipientType: "admin",
+          recipientId: null,
+          type: "withdrawal_ready_for_disbursement",
+          title: "Withdraw request ready for disbursement",
+          link: "/manage/funds-requests/pending-withdrawals",
+          payload: { requestId: id, clientId, amount },
+        });
+      }
+    } catch (e) {
+      console.error("[notifications] approve:", e);
+    }
+
     return NextResponse.json({ ok: true });
   }
 

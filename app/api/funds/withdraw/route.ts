@@ -4,6 +4,7 @@ import { getProfileByEmail } from "@/lib/profile";
 import { supabase } from "@/lib/supabase/server";
 import { getFundsRates } from "@/lib/funds-rates";
 import { getInvestmentAccountId } from "@/lib/investment-account";
+import { createNotification } from "@/lib/notifications";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -113,5 +114,19 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  try {
+    await createNotification({
+      recipientType: "admin",
+      recipientId: null,
+      type: "withdrawal_request_received",
+      title: "Withdraw request received for approval",
+      link: "/manage/funds-requests",
+      payload: { amountUsd, amountInr, clientId, requestId: inserted?.id },
+    });
+  } catch (e) {
+    console.error("[notifications] withdrawal_request_received:", e);
+  }
+
   return NextResponse.json({ ok: true, id: inserted?.id });
 }
