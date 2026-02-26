@@ -11,6 +11,7 @@ import {
   BiDollar,
   BiCalendar,
   BiCheckCircle,
+  BiFile,
   BiLeftArrowAlt,
   BiMenu,
   BiX,
@@ -47,6 +48,7 @@ const navItems: Array<
     ],
   },
   { href: "/manage/partnership-earnings", label: "Partnership Earnings", icon: BiDollar },
+  { href: "/manage/reports", label: "Reports", icon: BiFile },
   { href: "/manage/manual-interest", label: "Manual Interest", icon: BiCalendar },
   { href: "/manage/skip-review", label: "Skip Review", icon: BiCheckCircle },
 ];

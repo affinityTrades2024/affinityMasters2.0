@@ -11,14 +11,43 @@ export async function GET(request: NextRequest) {
   const accountId = request.nextUrl.searchParams.get("accountId");
   if (!accountId) return NextResponse.json({ error: "accountId required" }, { status: 400 });
 
-  const { data } = await supabase
+  const parsedAccountId = parseInt(accountId, 10);
+
+  const { data: accountRow } = await supabase
+    .from("accounts")
+    .select("client_id")
+    .eq("account_id", parsedAccountId)
+    .maybeSingle();
+  const clientId = accountRow?.client_id != null ? Number(accountRow.client_id) : null;
+
+  const seen = new Set<number>();
+  let totalDeposits = 0;
+
+  const { data: byDest } = await supabase
     .from("transactions")
-    .select("destination_amount")
+    .select("id, destination_amount")
     .eq("type", "deposit")
-    .eq("destination_account_id", parseInt(accountId, 10));
-  const totalDeposits = (data || []).reduce(
-    (s, r) => s + Number(r.destination_amount ?? 0),
-    0
-  );
+    .eq("destination_account_id", parsedAccountId);
+  for (const r of byDest || []) {
+    if (!seen.has(r.id)) {
+      seen.add(r.id);
+      totalDeposits += Number(r.destination_amount ?? 0);
+    }
+  }
+
+  if (clientId != null) {
+    const { data: byClient } = await supabase
+      .from("transactions")
+      .select("id, destination_amount")
+      .eq("type", "deposit")
+      .eq("client_id", clientId);
+    for (const r of byClient || []) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        totalDeposits += Number(r.destination_amount ?? 0);
+      }
+    }
+  }
+
   return NextResponse.json({ totalDeposits });
 }

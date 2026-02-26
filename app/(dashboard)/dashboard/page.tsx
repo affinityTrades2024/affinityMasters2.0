@@ -43,11 +43,12 @@ export default async function DashboardPage() {
     selfAccountNumbers
   );
   const rates = await getFundsRates();
-  const displayRate = rates.depositInrPerUsd;
+  const depositRate = rates.depositInrPerUsd;
+  const withdrawalRate = rates.withdrawalInrPerUsd;
   const metrics = computeDashboardMetrics(
     transactions,
     totalBalanceUsd,
-    displayRate
+    depositRate
   );
 
   const formatUsd = (n: number) =>
@@ -96,7 +97,7 @@ export default async function DashboardPage() {
           linkHref="/transactions"
           linkLabel="↗"
           value={formatUsd(metrics.totalProfit)}
-          subValue={formatInr(metrics.totalProfit * displayRate)}
+          subValue={formatInr(metrics.totalProfit * withdrawalRate)}
           variant="success"
         />
         <InfoBox
@@ -105,7 +106,7 @@ export default async function DashboardPage() {
           linkHref="/transactions"
           linkLabel="↗"
           value={formatUsd(metrics.ownProfit)}
-          subValue={formatInr(metrics.ownProfit * displayRate)}
+          subValue={formatInr(metrics.ownProfit * withdrawalRate)}
           variant="warning"
         />
         <InfoBox
@@ -114,7 +115,7 @@ export default async function DashboardPage() {
           linkHref="/team"
           linkLabel="↗"
           value={formatUsd(metrics.partnershipEarnings)}
-          subValue={formatInr(metrics.partnershipEarnings * displayRate)}
+          subValue={formatInr(metrics.partnershipEarnings * withdrawalRate)}
           variant="primary"
         />
       </div>

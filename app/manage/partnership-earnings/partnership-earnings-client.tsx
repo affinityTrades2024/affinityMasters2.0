@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import AdminAlert from "@/components/admin/AdminAlert";
 
 interface AccountOption {
   account_id: number;
   account_number: string;
   client_name: string;
+  email: string;
 }
 
 const selectClass =
@@ -17,6 +18,115 @@ const btnSecondary =
   "rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50";
 const btnPrimary =
   "rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50";
+
+function SearchableAccountSelect({
+  accounts,
+  value,
+  onChange,
+  placeholder = "Select account",
+  "aria-label": ariaLabel,
+}: {
+  accounts: AccountOption[];
+  value: number | "";
+  onChange: (accountId: number | "") => void;
+  placeholder?: string;
+  "aria-label"?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selected = value !== "" ? accounts.find((a) => a.account_id === value) : null;
+  const displayLabel = selected
+    ? `${selected.email || "—"} – ${selected.client_name || "—"} (${selected.account_number})`
+    : "";
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return accounts;
+    return accounts.filter(
+      (a) =>
+        (a.email || "").toLowerCase().includes(q) ||
+        (a.account_number || "").toLowerCase().includes(q) ||
+        (a.client_name || "").toLowerCase().includes(q)
+    );
+  }, [accounts, query]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={ariaLabel}
+        aria-controls={open ? "account-list" : undefined}
+        tabIndex={0}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            setQuery("");
+          }
+        }}
+        className={selectClass}
+      >
+        {open ? (
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder="Type to search…"
+            className="w-full border-0 p-0 text-sm focus:ring-0"
+            autoFocus
+          />
+        ) : (
+          <span className={value === "" ? "text-slate-400" : ""}>
+            {displayLabel || placeholder}
+          </span>
+        )}
+      </div>
+      {open && (
+        <ul
+          id="account-list"
+          role="listbox"
+          className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-slate-500">No matches</li>
+          ) : (
+            filtered.map((a) => (
+              <li
+                key={a.account_id}
+                role="option"
+                aria-selected={value === a.account_id}
+                onClick={() => {
+                  onChange(a.account_id);
+                  setQuery("");
+                  setOpen(false);
+                }}
+                className="cursor-pointer px-3 py-2 text-sm hover:bg-amber-50 data-[selected]:bg-amber-100"
+                data-selected={value === a.account_id ? true : undefined}
+              >
+                {a.email || "—"} – {a.client_name || "—"} ({a.account_number})
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function PartnershipEarningsClient({
   accounts,
@@ -110,38 +220,28 @@ export default function PartnershipEarningsClient({
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Recipient account (receives the fee)
           </label>
-          <select
+          <SearchableAccountSelect
+            accounts={accounts}
             value={recipientId}
-            onChange={(e) => setRecipientId(e.target.value ? Number(e.target.value) : "")}
-            className={selectClass}
-          >
-            <option value="">Select account</option>
-            {accounts.map((a) => (
-              <option key={a.account_id} value={a.account_id}>
-                {a.account_number} – {a.client_name}
-              </option>
-            ))}
-          </select>
+            onChange={setRecipientId}
+            placeholder="Select account"
+            aria-label="Recipient account"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Referral account (deposits used for %)
           </label>
-          <select
+          <SearchableAccountSelect
+            accounts={accounts}
             value={referralId}
-            onChange={(e) => {
-              setReferralId(e.target.value ? Number(e.target.value) : "");
+            onChange={(id) => {
+              setReferralId(id);
               setTotalDeposits(null);
             }}
-            className={selectClass}
-          >
-            <option value="">Select account</option>
-            {accounts.map((a) => (
-              <option key={a.account_id} value={a.account_id}>
-                {a.account_number} – {a.client_name}
-              </option>
-            ))}
-          </select>
+            placeholder="Select account"
+            aria-label="Referral account"
+          />
         </div>
       </div>
 
