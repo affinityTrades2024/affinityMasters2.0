@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import AutoWithdrawalBlock from "@/components/AutoWithdrawalBlock";
 
 interface BankAccount {
   id: number;
@@ -257,6 +258,10 @@ export default function BankAccountsTab() {
           </ul>
         </div>
       )}
+
+      <div className="mt-8">
+        <AutoWithdrawalBlock />
+      </div>
     </div>
   );
 }

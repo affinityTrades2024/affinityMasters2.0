@@ -182,7 +182,7 @@ export default function InvestmentAccountsClient({
     setSaveMessage(null);
     try {
       const accountPayload: Record<string, unknown> = {};
-      const accountFields = ["client_name", "email", "interest_rate_monthly", "balance", "free_funds"] as const;
+      const accountFields = ["client_name", "email", "interest_rate_monthly", "balance"] as const;
       for (const f of accountFields) {
         if (editForm.account[f] !== undefined) accountPayload[f] = editForm.account[f];
       }
@@ -509,7 +509,6 @@ function AccountTab({
     { key: "client_name", label: "Client name", value: a.client_name },
     { key: "email", label: "Email", value: a.email },
     { key: "balance", label: "Balance", value: formatUsd(Number(a.balance ?? 0)) },
-    { key: "free_funds", label: "Free funds", value: a.free_funds != null ? formatUsd(Number(a.free_funds)) : "—" },
     { key: "product", label: "Product", value: a.product },
     { key: "platform", label: "Platform", value: a.platform },
     { key: "type", label: "Type", value: a.type },
@@ -520,13 +519,13 @@ function AccountTab({
       {fields.map(({ key, label, value }) => (
         <div key={key}>
           <dt className="text-xs font-medium text-slate-500">{label}</dt>
-          {isEdit && ["client_name", "email", "balance", "free_funds"].includes(key) && editForm ? (
+          {isEdit && ["client_name", "email", "balance"].includes(key) && editForm ? (
             <input
-              type={key === "balance" || key === "free_funds" ? "number" : "text"}
-              step={key === "balance" || key === "free_funds" ? "0.01" : undefined}
+              type={key === "balance" ? "number" : "text"}
+              step={key === "balance" ? "0.01" : undefined}
               className={inputClass}
               value={
-                key === "balance" || key === "free_funds"
+                key === "balance"
                   ? (editForm.account[key as keyof typeof editForm.account] ?? "")
                   : String(value ?? "")
               }
@@ -536,7 +535,7 @@ function AccountTab({
                   account: {
                     ...editForm.account,
                     [key]:
-                      key === "balance" || key === "free_funds"
+                      key === "balance"
                         ? parseFloat(e.target.value) || 0
                         : e.target.value,
                   },

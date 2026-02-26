@@ -5,6 +5,7 @@ import { getFundsRates } from "@/lib/funds-rates";
 import { getInvestmentAccount } from "@/lib/investment-account";
 import { getBankAccounts, getDefaultBankAccount } from "@/lib/bank-accounts";
 import WithdrawalFormClient from "./withdrawal-form-client";
+import AutoWithdrawalBlock from "@/components/AutoWithdrawalBlock";
 
 export default async function FundsWithdrawalPage() {
   const session = await getSession();
@@ -25,10 +26,7 @@ export default async function FundsWithdrawalPage() {
         accountId: investmentAccount.account_id,
         label: investmentAccount.product || investmentAccount.account_number || "Investment Account",
         accountNumber: investmentAccount.account_number,
-        availableUsd:
-          (investmentAccount.free_funds != null && investmentAccount.free_funds > 0)
-            ? investmentAccount.free_funds
-            : investmentAccount.balance,
+        availableUsd: investmentAccount.balance,
       }
     : null;
 
@@ -48,6 +46,7 @@ export default async function FundsWithdrawalPage() {
           defaultBankAccount={defaultBankAccount}
         />
       </div>
+      <AutoWithdrawalBlock />
     </div>
   );
 }

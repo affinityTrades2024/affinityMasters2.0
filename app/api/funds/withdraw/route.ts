@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
   const { data: accountRow, error: accError } = await supabase
     .from("accounts")
-    .select("account_id, balance, free_funds")
+    .select("account_id, balance")
     .eq("account_id", accountId)
     .eq("client_id", clientId)
     .not("platform", "ilike", "%demo%")
@@ -81,10 +81,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const available =
-    (Number(accountRow.free_funds ?? 0) > 0
-      ? Number(accountRow.free_funds)
-      : Number(accountRow.balance ?? 0)) ?? 0;
+  const available = Number(accountRow.balance ?? 0);
   if (amountUsd > available) {
     return NextResponse.json(
       { error: "Amount exceeds available balance" },

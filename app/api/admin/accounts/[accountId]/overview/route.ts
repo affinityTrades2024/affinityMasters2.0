@@ -28,7 +28,7 @@ export async function GET(
   const { data: account, error: accountError } = await supabase
     .from("accounts")
     .select(
-      "account_id, account_number, client_id, client_name, email, balance, free_funds, interest_rate_monthly, product, platform, type, created"
+      "account_id, account_number, client_id, client_name, email, balance, interest_rate_monthly, product, platform, type, created"
     )
     .eq("account_id", accountId)
     .maybeSingle();
@@ -100,7 +100,7 @@ export async function GET(
       client_name: account.client_name,
       email: account.email,
       balance: Number(account.balance ?? 0),
-      free_funds: account.free_funds != null ? Number(account.free_funds) : null,
+      free_funds: null,
       interest_rate_monthly: interestRate,
       product: account.product,
       platform: account.platform,

@@ -26,7 +26,7 @@ export async function GET() {
   const { data: requests, error } = await supabase
     .from("funds_requests")
     .select(
-      "id, client_id, type, account_id, amount_usd, amount_inr, status, requested_at"
+      "id, client_id, type, account_id, amount_usd, amount_inr, status, requested_at, is_auto_withdrawal"
     )
     .eq("status", "pending")
     .order("requested_at", { ascending: true });
@@ -72,6 +72,7 @@ export async function GET() {
     amountUsd: Number(r.amount_usd),
     amountInr: Number(r.amount_inr),
     requestedAt: r.requested_at,
+    isAutoWithdrawal: Boolean(r.is_auto_withdrawal),
   }));
 
   return NextResponse.json({ requests: list });
@@ -85,13 +86,9 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const id = body?.id != null ? parseInt(String(body.id), 10) : NaN;
   const action = body?.action;
   const adminNotes = typeof body?.admin_notes === "string" ? body.admin_notes.trim() || null : null;
 
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "Valid id required" }, { status: 400 });
-  }
   if (action !== "approve" && action !== "reject" && action !== "disburse") {
     return NextResponse.json(
       { error: "action must be 'approve', 'reject', or 'disburse'" },
@@ -105,6 +102,219 @@ export async function PATCH(request: Request) {
     .ilike("email", session.email.trim().toLowerCase())
     .maybeSingle();
   const reviewedByAdminId = adminRow?.id ?? null;
+
+  const rawIds = Array.isArray(body.ids) ? body.ids : [];
+  const bulkIds = rawIds
+    .map((x: unknown) => (typeof x === "number" && Number.isInteger(x) ? x : parseInt(String(x), 10)))
+    .filter((n: number) => Number.isInteger(n) && n > 0)
+    .slice(0, 50) as number[];
+
+  if (bulkIds.length > 0 && (action === "approve" || action === "reject")) {
+    let approved = 0;
+    let rejected = 0;
+    const errors: { id: number; message: string }[] = [];
+    const bulkNotes = adminNotes;
+
+    for (const bid of bulkIds) {
+      try {
+        const { data: row, error: fetchError } = await supabase
+          .from("funds_requests")
+          .select("id, client_id, type, account_id, amount_usd, status")
+          .eq("id", bid)
+          .single();
+
+        if (fetchError || !row || row.status !== "pending") {
+          errors.push({ id: bid, message: "Not found or not pending" });
+          continue;
+        }
+
+        const amount = Number(row.amount_usd ?? 0);
+        const accountId = Number(row.account_id);
+        const clientId = row.client_id;
+
+        if (action === "reject") {
+          const { error: updError } = await supabase
+            .from("funds_requests")
+            .update({
+              status: "rejected",
+              reviewed_at: new Date().toISOString(),
+              reviewed_by_admin_id: reviewedByAdminId,
+            })
+            .eq("id", bid);
+          if (updError) {
+            errors.push({ id: bid, message: updError.message });
+            continue;
+          }
+          try {
+            const notifType = row.type === "deposit" ? "deposit_rejected" : "withdrawal_rejected";
+            const title =
+              row.type === "deposit" ? "Deposit request rejected" : "Withdraw request rejected";
+            await createNotification({
+              recipientType: "user",
+              recipientId: clientId,
+              type: notifType,
+              title,
+              link: "/funds",
+              payload: { amount },
+            });
+          } catch {
+            // ignore notif failure
+          }
+          rejected++;
+          continue;
+        }
+
+        if (action === "approve" && row.type === "withdrawal") {
+          const { data: acc } = await supabase
+            .from("accounts")
+            .select("balance")
+            .eq("account_id", accountId)
+            .single();
+          const available = Number(acc?.balance ?? 0);
+          if (amount > available) {
+            errors.push({ id: bid, message: "Insufficient balance to approve withdrawal" });
+            continue;
+          }
+        }
+
+        const nextTxId = await getNextTransactionId();
+        const operationDate = new Date().toISOString().slice(0, 10);
+
+        if (row.type === "deposit") {
+          const { error: txError } = await supabase.from("transactions").insert({
+            id: nextTxId,
+            client_id: clientId,
+            type: "deposit",
+            source_account_id: MASTER_ACCOUNT_ID,
+            destination_account_id: accountId,
+            source_amount: amount,
+            source_currency: "USD",
+            destination_amount: amount,
+            destination_currency: "USD",
+            status: "completed",
+            operation_date: operationDate,
+          });
+          if (txError) {
+            errors.push({ id: bid, message: txError.message });
+            continue;
+          }
+          const { data: acc } = await supabase
+            .from("accounts")
+            .select("balance")
+            .eq("account_id", accountId)
+            .single();
+          const newBalance = (Number(acc?.balance ?? 0)) + amount;
+          const { error: updAcc } = await supabase
+            .from("accounts")
+            .update({ balance: newBalance })
+            .eq("account_id", accountId);
+          if (updAcc) {
+            errors.push({ id: bid, message: updAcc.message });
+            continue;
+          }
+        } else {
+          const { error: txError } = await supabase.from("transactions").insert({
+            id: nextTxId,
+            client_id: clientId,
+            type: "withdrawal",
+            source_account_id: accountId,
+            destination_account_id: MASTER_ACCOUNT_ID,
+            source_amount: amount,
+            source_currency: "USD",
+            destination_amount: amount,
+            destination_currency: "USD",
+            status: "completed",
+            operation_date: operationDate,
+          });
+          if (txError) {
+            errors.push({ id: bid, message: txError.message });
+            continue;
+          }
+          const { data: acc } = await supabase
+            .from("accounts")
+            .select("balance")
+            .eq("account_id", accountId)
+            .single();
+          const newBalance = Math.max(0, Number(acc?.balance ?? 0) - amount);
+          const { error: updAcc } = await supabase
+            .from("accounts")
+            .update({ balance: newBalance })
+            .eq("account_id", accountId);
+          if (updAcc) {
+            errors.push({ id: bid, message: updAcc.message });
+            continue;
+          }
+        }
+
+        const newStatus = row.type === "withdrawal" ? "approved_pending_disbursement" : "approved";
+        const updatePayload: Record<string, unknown> = {
+          status: newStatus,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by_admin_id: reviewedByAdminId,
+          transaction_id: nextTxId,
+        };
+        if (row.type === "deposit" && bulkNotes != null) {
+          updatePayload.admin_notes = bulkNotes;
+        }
+        const { error: updReq } = await supabase
+          .from("funds_requests")
+          .update(updatePayload)
+          .eq("id", bid);
+        if (updReq) {
+          errors.push({ id: bid, message: updReq.message });
+          continue;
+        }
+
+        try {
+          if (row.type === "deposit") {
+            await createNotification({
+              recipientType: "user",
+              recipientId: clientId,
+              type: "deposit_approved",
+              title: "Deposit request approved",
+              link: "/funds",
+              payload: { transactionId: nextTxId, amount },
+            });
+          } else {
+            await createNotification({
+              recipientType: "user",
+              recipientId: clientId,
+              type: "withdrawal_approved",
+              title: "Withdraw request approved",
+              link: "/funds",
+              payload: { transactionId: nextTxId, amount },
+            });
+            await createNotification({
+              recipientType: "admin",
+              recipientId: null,
+              type: "withdrawal_ready_for_disbursement",
+              title: "Withdraw request ready for disbursement",
+              link: "/manage/funds-requests/pending-withdrawals",
+              payload: { requestId: bid, clientId, amount },
+            });
+          }
+        } catch {
+          // ignore notif failure
+        }
+        approved++;
+      } catch (e) {
+        errors.push({ id: bid, message: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      processed: bulkIds.length,
+      approved,
+      rejected,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  }
+
+  const id = body?.id != null ? parseInt(String(body.id), 10) : NaN;
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json({ error: "Valid id required" }, { status: 400 });
+  }
 
   const { data: row, error: fetchError } = await supabase
     .from("funds_requests")
@@ -208,13 +418,10 @@ export async function PATCH(request: Request) {
     if (row.type === "withdrawal") {
       const { data: acc } = await supabase
         .from("accounts")
-        .select("balance, free_funds")
+        .select("balance")
         .eq("account_id", accountId)
         .single();
-      const available =
-        (Number(acc?.free_funds ?? 0) > 0
-          ? Number(acc?.free_funds)
-          : Number(acc?.balance ?? 0)) ?? 0;
+      const available = Number(acc?.balance ?? 0);
       if (amount > available) {
         return NextResponse.json(
           { error: "Insufficient balance to approve withdrawal" },

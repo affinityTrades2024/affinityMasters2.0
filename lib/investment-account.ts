@@ -24,6 +24,7 @@ export interface InvestmentAccountRow {
   account_id: number;
   account_number: string;
   balance: number;
+  /** @deprecated Use balance for available/withdrawable amount. Kept for backward compat. */
   free_funds: number;
   platform: string;
   product: string | null;
@@ -41,18 +42,19 @@ export async function getInvestmentAccount(
 
   const { data, error } = await supabase
     .from("accounts")
-    .select("account_id, account_number, balance, free_funds, platform, product")
+    .select("account_id, account_number, balance, platform, product")
     .eq("account_id", accountId)
     .eq("client_id", clientId)
     .maybeSingle();
 
   if (error || !data) return null;
 
+  const balance = Number(data.balance ?? 0);
   return {
     account_id: Number(data.account_id),
     account_number: String(data.account_number ?? ""),
-    balance: Number(data.balance ?? 0),
-    free_funds: Number(data.free_funds ?? data.balance ?? 0),
+    balance,
+    free_funds: balance,
     platform: String(data.platform ?? ""),
     product: data.product != null ? String(data.product) : null,
   };

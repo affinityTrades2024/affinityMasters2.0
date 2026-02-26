@@ -19,7 +19,7 @@ export interface InvestmentAccountRow {
 function getInvestmentAccountsFilter(q: string | null) {
   const base = supabase
     .from("accounts")
-    .select("account_id, account_number, client_name, email, client_id, balance, free_funds", { count: "exact" })
+    .select("account_id, account_number, client_name, email, client_id, balance", { count: "exact" })
     .or("type.eq.investment,type.is.null,product.eq.PAMM Investor")
     .not("platform", "ilike", "%demo%")
     .order("account_number");
@@ -69,7 +69,6 @@ export default async function ManagePammPage({
     email: string | null;
     client_id: number | null;
     balance: number | null;
-    free_funds: number | null;
   }[];
 
   const totalCount = count ?? 0;
@@ -86,10 +85,7 @@ export default async function ManagePammPage({
   }
 
   const list: InvestmentAccountRow[] = rows.map((r) => {
-    const balance = Number(r.balance ?? 0);
-    const freeFunds = r.free_funds != null ? Number(r.free_funds) : null;
-    const available_balance =
-      freeFunds != null && freeFunds > 0 ? freeFunds : balance;
+    const available_balance = Number(r.balance ?? 0);
     return {
       account_id: r.account_id,
       account_number: String(r.account_number ?? r.account_id),

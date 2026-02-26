@@ -8,7 +8,6 @@ const ALLOWED_ACCOUNT_FIELDS = [
   "email",
   "interest_rate_monthly",
   "balance",
-  "free_funds",
 ] as const;
 
 export async function PATCH(
@@ -36,7 +35,7 @@ export async function PATCH(
       const v = parseFloat(String(body[field]));
       if (Number.isNaN(v) || v < 0 || v > 100) continue;
       updates[field] = v;
-    } else if (field === "balance" || field === "free_funds") {
+    } else if (field === "balance") {
       const v = parseFloat(String(body[field]));
       if (!Number.isNaN(v) && v >= 0) updates[field] = v;
     } else {
