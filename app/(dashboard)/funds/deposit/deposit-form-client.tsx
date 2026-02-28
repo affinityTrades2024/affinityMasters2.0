@@ -14,13 +14,15 @@ interface Props {
 }
 
 export default function DepositFormClient({ account, depositInrPerUsd }: Props) {
-  const [amountUsd, setAmountUsd] = useState("");
+  const [amountInr, setAmountInr] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const amount = parseFloat(amountUsd) || 0;
-  const amountInr = amount * depositInrPerUsd;
+  const amountInrNum = parseFloat(amountInr) || 0;
+  const amountUsd = amountInrNum / depositInrPerUsd;
+  const minInr = 10 * depositInrPerUsd;
+  const belowMin = amountInrNum > 0 && amountUsd < 10;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,9 +31,14 @@ export default function DepositFormClient({ account, depositInrPerUsd }: Props) 
       setError("No investment account linked.");
       return;
     }
-    const amt = parseFloat(amountUsd);
-    if (Number.isNaN(amt) || amt <= 0) {
-      setError("Enter a valid amount (USD).");
+    const inr = parseFloat(amountInr);
+    if (Number.isNaN(inr) || inr <= 0) {
+      setError("Enter a valid amount (INR).");
+      return;
+    }
+    const amtUsd = inr / depositInrPerUsd;
+    if (amtUsd < 10) {
+      setError("Minimum deposit is 10 USD (₹ " + Math.ceil(minInr).toLocaleString("en-IN") + " at current rate).");
       return;
     }
     setSubmitting(true);
@@ -39,7 +46,7 @@ export default function DepositFormClient({ account, depositInrPerUsd }: Props) 
       const res = await fetch("/api/funds/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amountUsd: amt, accountId: account.accountId }),
+        body: JSON.stringify({ amountUsd: amtUsd, accountId: account.accountId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -47,7 +54,7 @@ export default function DepositFormClient({ account, depositInrPerUsd }: Props) 
         return;
       }
       setSuccess(true);
-      setAmountUsd("");
+      setAmountInr("");
     } finally {
       setSubmitting(false);
     }
@@ -86,22 +93,25 @@ export default function DepositFormClient({ account, depositInrPerUsd }: Props) 
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
-          Amount (USD)
+          Amount (INR)
         </label>
         <input
           type="number"
           min={0.01}
-          step={0.01}
-          value={amountUsd}
-          onChange={(e) => setAmountUsd(e.target.value)}
+          step={1}
+          value={amountInr}
+          onChange={(e) => setAmountInr(e.target.value)}
           className={inputClass}
-          placeholder="0.00"
+          placeholder="0"
         />
-        {amount > 0 && (
+        {amountInrNum > 0 && (
           <p className="mt-1.5 text-sm text-slate-600">
-            ≈ ₹ {amountInr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
-            (at ₹ {depositInrPerUsd} per 1 USD)
+            ≈ $ {amountUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+            USD (at ₹ {depositInrPerUsd} per 1 USD)
           </p>
+        )}
+        {belowMin && (
+          <p className="mt-1 text-sm text-amber-600">Minimum deposit is $10 USD.</p>
         )}
       </div>
       <div>
@@ -113,7 +123,7 @@ export default function DepositFormClient({ account, depositInrPerUsd }: Props) 
       {error && (
         <p className="text-sm text-red-600">{error}</p>
       )}
-      <button type="submit" disabled={submitting} className={btnPrimary}>
+      <button type="submit" disabled={submitting || belowMin} className={btnPrimary}>
         {submitting ? "Submitting…" : "Submit deposit request"}
       </button>
     </form>

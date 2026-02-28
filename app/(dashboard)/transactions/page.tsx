@@ -5,6 +5,7 @@ import {
   buildAccountMaps,
   getTransactionsForClient,
   toDisplayTransactions,
+  getWithdrawalToAccountMap,
 } from "@/lib/transactions";
 import Link from "next/link";
 import TransactionsTableClient from "./transactions-table-client";
@@ -16,12 +17,15 @@ export default async function TransactionsPage() {
   if (!profile) redirect("/auth/login");
 
   const { transactions: rawTxs } = await getTransactionsForClient(profile.id);
-  const { byId, selfAccountNumbers } =
-    await buildAccountMaps(profile.id, rawTxs);
+  const [ { byId, selfAccountNumbers }, withdrawalToAccount ] = await Promise.all([
+    buildAccountMaps(profile.id, rawTxs),
+    getWithdrawalToAccountMap(profile.id, rawTxs),
+  ]);
   const transactions = toDisplayTransactions(
     rawTxs,
     byId,
-    selfAccountNumbers
+    selfAccountNumbers,
+    withdrawalToAccount
   );
 
   return (

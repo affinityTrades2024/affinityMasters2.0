@@ -106,3 +106,55 @@ export function computeDashboardMetrics(
     dailyProfit,
   };
 }
+
+export interface MonthlySeriesPoint {
+  month: string;
+  ownProfit: number;
+  partnershipEarnings: number;
+  dailyProfit: number;
+}
+
+/** Compute monthly series for Own profit, Partnership earnings, Daily Profit (last 12 months or all). */
+export function computeMonthlySeries(
+  transactions: TransactionDisplay[],
+  lastNMonths: number = 12
+): MonthlySeriesPoint[] {
+  const byMonth = new Map<
+    string,
+    { ownProfit: number; partnershipEarnings: number; dailyProfit: number }
+  >();
+
+  for (const t of transactions) {
+    const month = t.operationDate ? t.operationDate.slice(0, 7) : "";
+    if (!month) continue;
+    if (!byMonth.has(month)) {
+      byMonth.set(month, {
+        ownProfit: 0,
+        partnershipEarnings: 0,
+        dailyProfit: 0,
+      });
+    }
+    const row = byMonth.get(month)!;
+    const amt = t.creditDetails.amount;
+    if (t.type === "Performance Fees") row.ownProfit += amt;
+    else if (t.type === "Partnership Fees") row.partnershipEarnings += amt;
+    else if (t.type === "Daily Profit") row.dailyProfit += amt;
+  }
+
+  const sortedMonths = [...byMonth.keys()].sort();
+  const cutoff =
+    lastNMonths > 0 && sortedMonths.length > lastNMonths
+      ? sortedMonths[sortedMonths.length - lastNMonths]
+      : null;
+  return sortedMonths
+    .filter((m) => !cutoff || m >= cutoff)
+    .map((month) => {
+      const r = byMonth.get(month)!;
+      return {
+        month,
+        ownProfit: Math.round(r.ownProfit),
+        partnershipEarnings: Math.round(r.partnershipEarnings),
+        dailyProfit: Math.round(r.dailyProfit),
+      };
+    });
+}

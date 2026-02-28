@@ -267,15 +267,80 @@ export async function getTransactionsForClient(clientId: number): Promise<{
   return { transactions, accountIds: myAccountIds };
 }
 
+const MASK = "****";
+
+function maskAccountNumber(accountNumber: string): string {
+  const s = (accountNumber || "").trim();
+  if (s.length <= 4) return MASK;
+  return MASK + s.slice(-4);
+}
+
+/** For withdrawal transactions, get withdrawal-request bank account display by transaction ID (client's funds_requests + bank_accounts). */
+export async function getWithdrawalToAccountMap(
+  clientId: number,
+  transactionRows: RawTransactionRow[]
+): Promise<Map<number, AccountDisplay>> {
+  const withdrawalIds = transactionRows
+    .filter((r) => {
+      const t = (r.type || "").toLowerCase().trim();
+      return t === "withdrawal" || t === "payout";
+    })
+    .map((r) => r.id);
+  if (withdrawalIds.length === 0) return new Map();
+
+  const batchSize = 500;
+  const out = new Map<number, AccountDisplay>();
+  for (let i = 0; i < withdrawalIds.length; i += batchSize) {
+    const batch = withdrawalIds.slice(i, i + batchSize);
+    const { data: frRows } = await supabase
+      .from("funds_requests")
+      .select("transaction_id, bank_account_id")
+      .eq("client_id", clientId)
+      .in("transaction_id", batch)
+      .not("bank_account_id", "is", null);
+    const bankIds = [...new Set((frRows ?? []).map((fr) => Number(fr.bank_account_id)).filter(Number.isFinite))];
+    if (bankIds.length === 0) continue;
+    const { data: bankRows } = await supabase
+      .from("bank_accounts")
+      .select("id, bank, account_number, ifsc_code")
+      .eq("client_id", clientId)
+      .in("id", bankIds);
+    const bankById = new Map<number, { bank: string; accountNumberMasked: string }>();
+    for (const b of bankRows ?? []) {
+      const id = Number(b.id);
+      bankById.set(id, {
+        bank: (b.bank as string) || "",
+        accountNumberMasked: maskAccountNumber((b.account_number as string) || ""),
+      });
+    }
+    for (const fr of frRows ?? []) {
+      const txId = Number(fr.transaction_id);
+      const baId = Number(fr.bank_account_id);
+      const entry = bankById.get(baId);
+      if (entry) {
+        out.set(txId, {
+          accountId: baId,
+          accountNumber: entry.accountNumberMasked,
+          clientName: "Self Bank Account",
+          caption: `${entry.bank} ${entry.accountNumberMasked}`,
+          platform: "—",
+        });
+      }
+    }
+  }
+  return out;
+}
+
 export function toDisplayTransactions(
   rows: RawTransactionRow[],
   byId: Map<number, AccountMapEntry>,
-  selfAccountNumbers: Set<string>
+  selfAccountNumbers: Set<string>,
+  withdrawalToAccount?: Map<number, AccountDisplay>
 ): TransactionDisplay[] {
   return rows.map((r) => {
     const destId = r.destination_account_id;
     const srcId = r.source_account_id;
-    const creditAcc = resolveAccount(destId, byId);
+    let creditAcc = resolveAccount(destId, byId);
     const debitAcc = resolveAccount(srcId, byId);
     const normalizedType = normalizeDbType(r.type);
     const displayType = reclassifyFees(
@@ -284,6 +349,18 @@ export function toDisplayTransactions(
       debitAcc.accountNumber,
       selfAccountNumbers
     );
+    // For withdrawal/payout: if we have bank account from withdrawal request, use it for To Account; else "Self Bank Account"
+    if ((normalizedType === "withdrawal" || normalizedType === "payout") && withdrawalToAccount?.has(r.id)) {
+      creditAcc = withdrawalToAccount.get(r.id)!;
+    } else if (normalizedType === "withdrawal" || normalizedType === "payout") {
+      creditAcc = {
+        accountId: 0,
+        accountNumber: "—",
+        clientName: "Self Bank Account",
+        caption: "—",
+        platform: "—",
+      };
+    }
     const destAmt = Number(r.destination_amount ?? 0);
     const srcAmt = Number(r.source_amount ?? 0);
     const displayAmount = destAmt > 0 ? destAmt : srcAmt;

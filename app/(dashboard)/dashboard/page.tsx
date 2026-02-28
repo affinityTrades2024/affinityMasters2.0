@@ -7,10 +7,11 @@ import {
   getTransactionsForClient,
   toDisplayTransactions,
 } from "@/lib/transactions";
-import { computeDashboardMetrics } from "@/lib/dashboard-metrics";
+import { computeDashboardMetrics, computeMonthlySeries } from "@/lib/dashboard-metrics";
 import { getFundsRates } from "@/lib/funds-rates";
 import { getInvestmentAccount } from "@/lib/investment-account";
 import InfoBox from "@/components/InfoBox";
+import DashboardChartsClient from "./dashboard-charts-client";
 import {
   BiDollar,
   BiTrendingUp,
@@ -50,6 +51,7 @@ export default async function DashboardPage() {
     totalBalanceUsd,
     depositRate
   );
+  const monthlySeries = computeMonthlySeries(transactions, 12);
 
   const formatUsd = (n: number) =>
     "$" +
@@ -80,8 +82,8 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Row 1: Balance, Total Profit, Own Profit, Partnership (like template) */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Row 1: Balance, Own Profit, Partnership (Total Profit hidden per spec) */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <InfoBox
           icon={<BiDollar className="h-7 w-7" />}
           title="Estimated Total Balance"
@@ -90,15 +92,6 @@ export default async function DashboardPage() {
           value={formatUsd(metrics.totalBalanceUsd)}
           subValue={formatInr(metrics.totalBalanceInr)}
           variant="primary"
-        />
-        <InfoBox
-          icon={<BiTrendingUp className="h-7 w-7" />}
-          title="Total Profit"
-          linkHref="/transactions"
-          linkLabel="↗"
-          value={formatUsd(metrics.totalProfit)}
-          subValue={formatInr(metrics.totalProfit * withdrawalRate)}
-          variant="success"
         />
         <InfoBox
           icon={<BiWallet className="h-7 w-7" />}
@@ -151,6 +144,13 @@ export default async function DashboardPage() {
           filled
         />
       </div>
+
+      {/* Month-wise charts */}
+      <DashboardChartsClient
+        ownProfitByMonth={monthlySeries}
+        partnershipEarningsByMonth={monthlySeries}
+        dailyProfitByMonth={monthlySeries}
+      />
     </div>
   );
 }

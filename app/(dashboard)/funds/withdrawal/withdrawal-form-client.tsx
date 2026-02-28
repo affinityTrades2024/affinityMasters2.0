@@ -39,7 +39,7 @@ export default function WithdrawalFormClient({
   defaultBankAccount,
 }: Props) {
   const router = useRouter();
-  const [amountUsd, setAmountUsd] = useState("");
+  const [amountInr, setAmountInr] = useState("");
   const [selectedBankId, setSelectedBankId] = useState<number | null>(
     defaultBankAccount?.id ?? (bankAccounts.length === 1 ? bankAccounts[0].id : null)
   );
@@ -55,9 +55,11 @@ export default function WithdrawalFormClient({
   const [addBankError, setAddBankError] = useState<string | null>(null);
 
   const available = account?.availableUsd ?? 0;
-  const amount = parseFloat(amountUsd) || 0;
-  const amountInr = amount * withdrawalInrPerUsd;
-  const exceedsBalance = amount > available;
+  const amountInrNum = parseFloat(amountInr) || 0;
+  const amountUsd = amountInrNum / withdrawalInrPerUsd;
+  const exceedsBalance = amountUsd > available;
+  const minInr = 10 * withdrawalInrPerUsd;
+  const belowMin = amountInrNum > 0 && amountUsd < 10;
   const effectiveBankId = selectedBankId ?? defaultBankAccount?.id ?? bankAccounts[0]?.id ?? null;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -71,12 +73,17 @@ export default function WithdrawalFormClient({
       setError("Please add and select a bank account for withdrawal.");
       return;
     }
-    const amt = parseFloat(amountUsd);
-    if (Number.isNaN(amt) || amt <= 0) {
-      setError("Enter a valid amount (USD).");
+    const inr = parseFloat(amountInr);
+    if (Number.isNaN(inr) || inr <= 0) {
+      setError("Enter a valid amount (INR).");
       return;
     }
-    if (amt > available) {
+    const amtUsd = inr / withdrawalInrPerUsd;
+    if (amtUsd < 10) {
+      setError("Minimum withdrawal is 10 USD (₹ " + Math.ceil(minInr).toLocaleString("en-IN") + " at current rate).");
+      return;
+    }
+    if (amtUsd > available) {
       setError("Amount exceeds available balance.");
       return;
     }
@@ -86,7 +93,7 @@ export default function WithdrawalFormClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amountUsd: amt,
+          amountUsd: amtUsd,
           accountId: account.accountId,
           bankAccountId: effectiveBankId,
         }),
@@ -97,7 +104,7 @@ export default function WithdrawalFormClient({
         return;
       }
       setSuccess(true);
-      setAmountUsd("");
+      setAmountInr("");
     } finally {
       setSubmitting(false);
     }
@@ -308,32 +315,34 @@ export default function WithdrawalFormClient({
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Amount (USD)
+            Amount (INR)
           </label>
           <input
             type="number"
             min={0.01}
-            max={available}
-            step={0.01}
-            value={amountUsd}
-            onChange={(e) => setAmountUsd(e.target.value)}
+            step={1}
+            value={amountInr}
+            onChange={(e) => setAmountInr(e.target.value)}
             className={inputClass}
-            placeholder="0.00"
+            placeholder="0"
           />
-          {amount > 0 && (
+          {amountInrNum > 0 && (
             <p className="mt-1 text-sm text-slate-600">
-              ≈ ₹ {amountInr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
-              (at ₹ {withdrawalInrPerUsd} per 1 USD)
+              ≈ $ {amountUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+              USD (at ₹ {withdrawalInrPerUsd} per 1 USD)
             </p>
           )}
-          {exceedsBalance && amount > 0 && (
+          {belowMin && (
+            <p className="mt-1 text-sm text-amber-600">Minimum withdrawal is $10 USD.</p>
+          )}
+          {exceedsBalance && amountInrNum > 0 && (
             <p className="mt-1 text-sm text-red-600">Amount exceeds available balance.</p>
           )}
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="submit"
-          disabled={submitting || exceedsBalance || amount <= 0 || !effectiveBankId}
+          disabled={submitting || exceedsBalance || amountInrNum <= 0 || belowMin || !effectiveBankId}
           className={btnPrimary}
         >
           {submitting ? "Submitting…" : "Submit withdrawal request"}
