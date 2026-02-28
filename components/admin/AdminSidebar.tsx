@@ -42,6 +42,7 @@ const navItems: Array<
     children: [
       { href: "/manage/funds-requests", label: "Fund Requests" },
       { href: "/manage/funds-requests/pending-withdrawals", label: "Disbursement Requests" },
+      { href: "/manage/partial-disbursal-requests", label: "Partial Disbursal Requests" },
       { href: "/manage/funds-requests/history", label: "Request History" },
       { href: "/manage/funds-requests/auto-withdrawal-clients", label: "Auto Withdrawal Clients" },
       { href: "/manage/funds-requests/auto-job-runs", label: "Auto Job Runs" },

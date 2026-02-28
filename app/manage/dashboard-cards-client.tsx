@@ -11,6 +11,7 @@ import {
   BiWallet,
   BiCheckCircle,
   BiRefresh,
+  BiTime,
 } from "react-icons/bi";
 
 /** Dashboard metrics response shape (matches API JSON) */
@@ -23,6 +24,7 @@ interface AdminDashboardData {
   totalProfitGiven: number;
   totalWithdrawals: number;
   activeInterestAccounts: number;
+  totalPendingDisbursalUsd: number;
   updatedAt: string;
 }
 
@@ -247,6 +249,15 @@ export default function DashboardCardsClient() {
           subValue={profitLoss < 0 ? "Loss (Business − Deposits)" : "Profit (Business − Deposits)"}
           icon={profitLoss < 0 ? <BiTrendingDown className="h-6 w-6" /> : <BiTrendingUp className="h-6 w-6" />}
           variant={profitLoss < 0 ? "warning" : "success"}
+        />
+        <AdminStatCard
+          title="Total Pending Disbursal"
+          value={formatUsdShort(data.totalPendingDisbursalUsd).display}
+          valueTitle={formatUsdShort(data.totalPendingDisbursalUsd).full}
+          subValue="partial withdrawal remainders"
+          icon={<BiTime className="h-6 w-6" />}
+          variant="warning"
+          href="/manage/partial-disbursal-requests"
         />
       </div>
     </div>

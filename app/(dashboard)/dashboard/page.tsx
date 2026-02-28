@@ -20,6 +20,7 @@ import {
   BiCalendar,
   BiUpArrowCircle,
   BiRepeat,
+  BiTime,
 } from "react-icons/bi";
 
 export default async function DashboardPage() {
@@ -34,6 +35,16 @@ export default async function DashboardPage() {
   const totalBalanceUsd = investmentAccount
     ? investmentAccount.balance
     : 0;
+
+  const { data: pendingDisbursalRows } = await supabase
+    .from("pending_disbursal_entries")
+    .select("amount_usd")
+    .eq("client_id", clientId)
+    .eq("status", "pending");
+  const pendingDisbursalUsd = (pendingDisbursalRows ?? []).reduce(
+    (sum, r) => sum + Number(r.amount_usd ?? 0),
+    0
+  );
 
   const { transactions: rawTxs } = await getTransactionsForClient(clientId);
   const { byId, selfAccountNumbers } =
@@ -111,6 +122,17 @@ export default async function DashboardPage() {
           subValue={formatInr(metrics.partnershipEarnings * withdrawalRate)}
           variant="primary"
         />
+        {pendingDisbursalUsd > 0 && (
+          <InfoBox
+            icon={<BiTime className="h-7 w-7" />}
+            title="Pending Disbursement Amount"
+            linkHref="/funds"
+            linkLabel="↗"
+            value={formatUsd(pendingDisbursalUsd)}
+            subValue={formatInr(pendingDisbursalUsd * withdrawalRate)}
+            variant="warning"
+          />
+        )}
       </div>
 
       {/* Row 2: Daily Profit + Return % cards (filled style like template second row) */}

@@ -20,6 +20,7 @@ export default async function FundsPage() {
     investmentAccount,
     { data: requests },
     rates,
+    { data: pendingDisbursalEntries },
   ] = await Promise.all([
     getInvestmentAccount(clientId),
     supabase
@@ -28,6 +29,12 @@ export default async function FundsPage() {
       .eq("client_id", clientId)
       .order("requested_at", { ascending: false }),
     getFundsRates(),
+    supabase
+      .from("pending_disbursal_entries")
+      .select("id, amount_usd, admin_comments, created_at, source_funds_request_id")
+      .eq("client_id", clientId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false }),
   ]);
 
   const totalBalanceUsd = investmentAccount ? investmentAccount.balance : 0;
@@ -40,6 +47,7 @@ export default async function FundsPage() {
 
   const pending = (requests || []).filter((r) => r.status === "pending");
   const allRequests = requests || [];
+  const pendingDisbursal = pendingDisbursalEntries ?? [];
 
   return (
     <div className="space-y-6">
@@ -168,6 +176,68 @@ export default async function FundsPage() {
           )}
         </div>
       </div>
+
+      {pendingDisbursal.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+              Pending Disbursal Amount
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Amounts from partial withdrawals; these will be settled by admin and credited to your account.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
+                    Date
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
+                    Amount (USD)
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
+                    Source request
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
+                    Admin comments
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {pendingDisbursal.map((e) => {
+                  const sourceReq = allRequests.find((r) => r.id === e.source_funds_request_id);
+                  return (
+                    <tr key={e.id}>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {e.created_at
+                          ? new Date(e.created_at).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {formatUsd(Number(e.amount_usd ?? 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {sourceReq
+                          ? `Withdrawal ${formatUsd(Number(sourceReq.amount_usd ?? 0))} requested ${sourceReq.requested_at ? new Date(sourceReq.requested_at).toLocaleDateString("en-US") : ""}`
+                          : `Request #${e.source_funds_request_id}`}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {e.admin_comments || "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

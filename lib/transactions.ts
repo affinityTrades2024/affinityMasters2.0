@@ -12,6 +12,7 @@ export interface AccountMapEntry {
 function normalizeDbType(type: string): string {
   const t = (type || "").toLowerCase().trim();
   if (t === "payout") return "withdrawal";
+  if (t === "pending_disbursal_settlement") return "withdrawal";
   if (["rewards", "fee", "fees", "performance_fee"].includes(t)) return "fees";
   if (t === "daily_interest") return "Daily Profit";
   if (t === "partnership_fee_admin") return "Partnership Fees";
@@ -275,7 +276,8 @@ function maskAccountNumber(accountNumber: string): string {
   return MASK + s.slice(-4);
 }
 
-/** For withdrawal transactions, get withdrawal-request bank account display by transaction ID (client's funds_requests + bank_accounts). */
+/** For withdrawal transactions, get withdrawal-request bank account display by transaction ID (client's funds_requests + bank_accounts).
+ * Includes pending_disbursal_settlement via pending_disbursal_entries -> source_funds_request -> bank_account_id. */
 export async function getWithdrawalToAccountMap(
   clientId: number,
   transactionRows: RawTransactionRow[]
@@ -286,10 +288,15 @@ export async function getWithdrawalToAccountMap(
       return t === "withdrawal" || t === "payout";
     })
     .map((r) => r.id);
-  if (withdrawalIds.length === 0) return new Map();
+  const settlementIds = transactionRows
+    .filter((r) => (r.type || "").toLowerCase().trim() === "pending_disbursal_settlement")
+    .map((r) => r.id);
+  const allIds = [...withdrawalIds, ...settlementIds];
+  if (allIds.length === 0) return new Map();
 
   const batchSize = 500;
   const out = new Map<number, AccountDisplay>();
+
   for (let i = 0; i < withdrawalIds.length; i += batchSize) {
     const batch = withdrawalIds.slice(i, i + batchSize);
     const { data: frRows } = await supabase
@@ -328,6 +335,60 @@ export async function getWithdrawalToAccountMap(
       }
     }
   }
+
+  for (let i = 0; i < settlementIds.length; i += batchSize) {
+    const batch = settlementIds.slice(i, i + batchSize);
+    const { data: pdeRows } = await supabase
+      .from("pending_disbursal_entries")
+      .select("settlement_transaction_id, source_funds_request_id")
+      .eq("client_id", clientId)
+      .in("settlement_transaction_id", batch)
+      .not("settlement_transaction_id", "is", null);
+    if (!pdeRows?.length) continue;
+    const requestIds = [...new Set((pdeRows ?? []).map((p) => Number(p.source_funds_request_id)).filter(Number.isFinite))];
+    const { data: frRows } = await supabase
+      .from("funds_requests")
+      .select("id, bank_account_id")
+      .eq("client_id", clientId)
+      .in("id", requestIds)
+      .not("bank_account_id", "is", null);
+    if (!frRows?.length) continue;
+    const bankIds = [...new Set((frRows ?? []).map((fr) => Number(fr.bank_account_id)).filter(Number.isFinite))];
+    const { data: bankRows } = await supabase
+      .from("bank_accounts")
+      .select("id, bank, account_number, ifsc_code")
+      .eq("client_id", clientId)
+      .in("id", bankIds);
+    const bankById = new Map<number, { bank: string; accountNumberMasked: string }>();
+    for (const b of bankRows ?? []) {
+      const id = Number(b.id);
+      bankById.set(id, {
+        bank: (b.bank as string) || "",
+        accountNumberMasked: maskAccountNumber((b.account_number as string) || ""),
+      });
+    }
+    const frById = new Map<number, number>();
+    for (const fr of frRows) {
+      frById.set(Number(fr.id), Number(fr.bank_account_id));
+    }
+    for (const pde of pdeRows) {
+      const txId = Number(pde.settlement_transaction_id);
+      const reqId = Number(pde.source_funds_request_id);
+      const baId = frById.get(reqId);
+      if (baId == null) continue;
+      const entry = bankById.get(baId);
+      if (entry) {
+        out.set(txId, {
+          accountId: baId,
+          accountNumber: entry.accountNumberMasked,
+          clientName: "Self Bank Account",
+          caption: `${entry.bank} ${entry.accountNumberMasked}`,
+          platform: "—",
+        });
+      }
+    }
+  }
+
   return out;
 }
 

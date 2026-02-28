@@ -320,7 +320,7 @@ export default function WithdrawalFormClient({
           <input
             type="number"
             min={0.01}
-            step={1}
+            step="any"
             value={amountInr}
             onChange={(e) => setAmountInr(e.target.value)}
             className={inputClass}

@@ -98,7 +98,7 @@ export default function DepositFormClient({ account, depositInrPerUsd }: Props) 
         <input
           type="number"
           min={0.01}
-          step={1}
+          step="any"
           value={amountInr}
           onChange={(e) => setAmountInr(e.target.value)}
           className={inputClass}

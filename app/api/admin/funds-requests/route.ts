@@ -89,9 +89,9 @@ export async function PATCH(request: Request) {
   const action = body?.action;
   const adminNotes = typeof body?.admin_notes === "string" ? body.admin_notes.trim() || null : null;
 
-  if (action !== "approve" && action !== "reject" && action !== "disburse") {
+  if (action !== "approve" && action !== "reject" && action !== "disburse" && action !== "partial_disburse") {
     return NextResponse.json(
-      { error: "action must be 'approve', 'reject', or 'disburse'" },
+      { error: "action must be 'approve', 'reject', 'disburse', or 'partial_disburse'" },
       { status: 400 }
     );
   }
@@ -212,46 +212,15 @@ export async function PATCH(request: Request) {
             errors.push({ id: bid, message: updAcc.message });
             continue;
           }
-        } else {
-          const { error: txError } = await supabase.from("transactions").insert({
-            id: nextTxId,
-            client_id: clientId,
-            type: "withdrawal",
-            source_account_id: accountId,
-            destination_account_id: MASTER_ACCOUNT_ID,
-            source_amount: amount,
-            source_currency: "USD",
-            destination_amount: amount,
-            destination_currency: "USD",
-            status: "completed",
-            operation_date: operationDate,
-          });
-          if (txError) {
-            errors.push({ id: bid, message: txError.message });
-            continue;
-          }
-          const { data: acc } = await supabase
-            .from("accounts")
-            .select("balance")
-            .eq("account_id", accountId)
-            .single();
-          const newBalance = Math.max(0, Number(acc?.balance ?? 0) - amount);
-          const { error: updAcc } = await supabase
-            .from("accounts")
-            .update({ balance: newBalance })
-            .eq("account_id", accountId);
-          if (updAcc) {
-            errors.push({ id: bid, message: updAcc.message });
-            continue;
-          }
         }
+        // Withdrawal: do not create transaction or debit account at approval; only at disbursement (full or partial).
 
         const newStatus = row.type === "withdrawal" ? "approved_pending_disbursement" : "approved";
         const updatePayload: Record<string, unknown> = {
           status: newStatus,
           reviewed_at: new Date().toISOString(),
           reviewed_by_admin_id: reviewedByAdminId,
-          transaction_id: nextTxId,
+          ...(row.type === "deposit" ? { transaction_id: nextTxId } : {}),
         };
         if (row.type === "deposit" && bulkNotes != null) {
           updatePayload.admin_notes = bulkNotes;
@@ -282,7 +251,7 @@ export async function PATCH(request: Request) {
               type: "withdrawal_approved",
               title: "Withdraw request approved",
               link: "/funds",
-              payload: { transactionId: nextTxId, amount },
+              payload: { amount },
             });
             await createNotification({
               recipientType: "admin",
@@ -335,38 +304,234 @@ export async function PATCH(request: Request) {
         { status: 400 }
       );
     }
+    const amountUsd = Number(row.amount_usd ?? 0);
+    const accountId = Number(row.account_id);
+    const clientId = row.client_id;
+
+    const { data: acc } = await supabase
+      .from("accounts")
+      .select("balance")
+      .eq("account_id", accountId)
+      .single();
+    const available = Number(acc?.balance ?? 0);
+    if (amountUsd > available) {
+      return NextResponse.json(
+        { error: "Insufficient balance to disburse withdrawal" },
+        { status: 400 }
+      );
+    }
+
+    const nextTxId = await getNextTransactionId();
+    const operationDate = new Date().toISOString().slice(0, 10);
+    const { error: txError } = await supabase.from("transactions").insert({
+      id: nextTxId,
+      client_id: clientId,
+      type: "withdrawal",
+      source_account_id: accountId,
+      destination_account_id: MASTER_ACCOUNT_ID,
+      source_amount: amountUsd,
+      source_currency: "USD",
+      destination_amount: amountUsd,
+      destination_currency: "USD",
+      status: "completed",
+      operation_date: operationDate,
+    });
+    if (txError) {
+      return NextResponse.json({ error: txError.message }, { status: 500 });
+    }
+    const newBalance = Math.max(0, available - amountUsd);
+    const { error: updAcc } = await supabase
+      .from("accounts")
+      .update({ balance: newBalance })
+      .eq("account_id", accountId);
+    if (updAcc) {
+      return NextResponse.json({ error: updAcc.message }, { status: 500 });
+    }
+
     const { error: disbError } = await supabase
       .from("funds_requests")
       .update({
         status: "disbursed",
         disbursed_at: new Date().toISOString(),
         admin_notes: adminNotes,
+        transaction_id: nextTxId,
       })
       .eq("id", id);
     if (disbError) {
       return NextResponse.json({ error: disbError.message }, { status: 500 });
     }
     try {
-      const { data: reqRow } = await supabase
-        .from("funds_requests")
-        .select("client_id, transaction_id, amount_usd")
-        .eq("id", id)
-        .single();
-      if (reqRow?.client_id != null) {
-        await createNotification({
-          recipientType: "user",
-          recipientId: reqRow.client_id,
-          type: "withdrawal_disbursed",
-          title: "Withdraw request disbursed",
-          link: "/funds",
-          payload: {
-            transactionId: reqRow.transaction_id,
-            amount: Number(reqRow.amount_usd ?? 0),
-          },
-        });
-      }
+      await createNotification({
+        recipientType: "user",
+        recipientId: clientId,
+        type: "withdrawal_disbursed",
+        title: "Withdraw request disbursed",
+        link: "/funds",
+        payload: { transactionId: nextTxId, amount: amountUsd },
+      });
     } catch (e) {
       console.error("[notifications] withdrawal_disbursed:", e);
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "partial_disburse") {
+    if (fetchError || !row) {
+      return NextResponse.json({ error: "Request not found" }, { status: 400 });
+    }
+    if (row.type !== "withdrawal") {
+      return NextResponse.json(
+        { error: "Only withdrawal requests can be partially disbursed" },
+        { status: 400 }
+      );
+    }
+    if (row.status !== "approved_pending_disbursement") {
+      return NextResponse.json(
+        {
+          error:
+            "Request must be in Approved – Processing payout status for partial disbursement",
+        },
+        { status: 400 }
+      );
+    }
+    const requestedUsd = Number(row.amount_usd ?? 0);
+    if (requestedUsd <= 0) {
+      return NextResponse.json({ error: "Invalid request amount" }, { status: 400 });
+    }
+    const partialComment =
+      typeof body?.partial_withdrawal_comment === "string"
+        ? body.partial_withdrawal_comment.trim()
+        : "";
+    if (!partialComment) {
+      return NextResponse.json(
+        { error: "Comments are mandatory for partial withdrawal" },
+        { status: 400 }
+      );
+    }
+    let disbursedUsd: number;
+    if (body?.disbursed_amount_usd != null) {
+      disbursedUsd = parseFloat(String(body.disbursed_amount_usd));
+      if (!Number.isFinite(disbursedUsd) || disbursedUsd <= 0 || disbursedUsd > requestedUsd) {
+        return NextResponse.json(
+          {
+            error: `Disbursed amount must be a positive number not greater than requested (${requestedUsd})`,
+          },
+          { status: 400 }
+        );
+      }
+    } else if (body?.disbursed_percent != null) {
+      const pct = parseFloat(String(body.disbursed_percent));
+      if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+        return NextResponse.json(
+          { error: "Disbursed percent must be between 0 and 100" },
+          { status: 400 }
+        );
+      }
+      disbursedUsd = Math.round((requestedUsd * pct) / 100 * 1e6) / 1e6;
+      if (disbursedUsd <= 0 || disbursedUsd > requestedUsd) {
+        return NextResponse.json(
+          { error: "Computed disbursed amount is invalid" },
+          { status: 400 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: "Provide either disbursed_amount_usd or disbursed_percent" },
+        { status: 400 }
+      );
+    }
+    const differenceUsd = Math.round((requestedUsd - disbursedUsd) * 1e6) / 1e6;
+    if (differenceUsd <= 0) {
+      return NextResponse.json(
+        { error: "Use full disbursement for 100% payout" },
+        { status: 400 }
+      );
+    }
+
+    const accountId = Number(row.account_id);
+    const clientId = row.client_id;
+    const { data: acc } = await supabase
+      .from("accounts")
+      .select("balance")
+      .eq("account_id", accountId)
+      .single();
+    const available = Number(acc?.balance ?? 0);
+    if (disbursedUsd > available) {
+      return NextResponse.json(
+        { error: "Insufficient balance to disburse this amount" },
+        { status: 400 }
+      );
+    }
+
+    const nextTxId = await getNextTransactionId();
+    const operationDate = new Date().toISOString().slice(0, 10);
+    const { error: txError } = await supabase.from("transactions").insert({
+      id: nextTxId,
+      client_id: clientId,
+      type: "withdrawal",
+      source_account_id: accountId,
+      destination_account_id: MASTER_ACCOUNT_ID,
+      source_amount: disbursedUsd,
+      source_currency: "USD",
+      destination_amount: disbursedUsd,
+      destination_currency: "USD",
+      status: "completed",
+      operation_date: operationDate,
+    });
+    if (txError) {
+      return NextResponse.json({ error: txError.message }, { status: 500 });
+    }
+    const newBalance = Math.max(0, available - disbursedUsd);
+    const { error: updAccErr } = await supabase
+      .from("accounts")
+      .update({ balance: newBalance })
+      .eq("account_id", accountId);
+    if (updAccErr) {
+      return NextResponse.json({ error: updAccErr.message }, { status: 500 });
+    }
+
+    const { error: updErr } = await supabase
+      .from("funds_requests")
+      .update({
+        status: "disbursed",
+        disbursed_at: new Date().toISOString(),
+        disbursed_amount_usd: disbursedUsd,
+        partial_withdrawal_comment: partialComment,
+        admin_notes: adminNotes,
+        transaction_id: nextTxId,
+      })
+      .eq("id", id);
+    if (updErr) {
+      return NextResponse.json({ error: updErr.message }, { status: 500 });
+    }
+
+    const { error: insErr } = await supabase.from("pending_disbursal_entries").insert({
+      client_id: row.client_id,
+      amount_usd: differenceUsd,
+      source_funds_request_id: id,
+      admin_comments: partialComment,
+      status: "pending",
+    });
+    if (insErr) {
+      return NextResponse.json({ error: insErr.message }, { status: 500 });
+    }
+
+    try {
+      await createNotification({
+        recipientType: "user",
+        recipientId: row.client_id,
+        type: "partial_withdrawal_recorded",
+        title: "Partial withdrawal recorded",
+        link: "/funds",
+        payload: {
+          requestId: id,
+          disbursedAmount: disbursedUsd,
+          pendingAmount: differenceUsd,
+          comment: partialComment,
+        },
+      });
+    } catch (e) {
+      console.error("[notifications] partial_withdrawal_recorded:", e);
     }
     return NextResponse.json({ ok: true });
   }
@@ -463,44 +628,15 @@ export async function PATCH(request: Request) {
       if (updAcc) {
         return NextResponse.json({ error: updAcc.message }, { status: 500 });
       }
-    } else {
-      const { error: txError } = await supabase.from("transactions").insert({
-        id: nextTxId,
-        client_id: clientId,
-        type: "withdrawal",
-        source_account_id: accountId,
-        destination_account_id: MASTER_ACCOUNT_ID,
-        source_amount: amount,
-        source_currency: "USD",
-        destination_amount: amount,
-        destination_currency: "USD",
-        status: "completed",
-        operation_date: operationDate,
-      });
-      if (txError) {
-        return NextResponse.json({ error: txError.message }, { status: 500 });
-      }
-      const { data: acc } = await supabase
-        .from("accounts")
-        .select("balance")
-        .eq("account_id", accountId)
-        .single();
-      const newBalance = Math.max(0, Number(acc?.balance ?? 0) - amount);
-      const { error: updAcc } = await supabase
-        .from("accounts")
-        .update({ balance: newBalance })
-        .eq("account_id", accountId);
-      if (updAcc) {
-        return NextResponse.json({ error: updAcc.message }, { status: 500 });
-      }
     }
+    // Withdrawal: do not create transaction or debit at approval; only at disbursement (full or partial).
 
     const newStatus = row.type === "withdrawal" ? "approved_pending_disbursement" : "approved";
     const updatePayload: Record<string, unknown> = {
       status: newStatus,
       reviewed_at: new Date().toISOString(),
       reviewed_by_admin_id: reviewedByAdminId,
-      transaction_id: nextTxId,
+      ...(row.type === "deposit" ? { transaction_id: nextTxId } : {}),
     };
     if (row.type === "deposit" && adminNotes != null) {
       updatePayload.admin_notes = adminNotes;
@@ -531,7 +667,7 @@ export async function PATCH(request: Request) {
           type: "withdrawal_approved",
           title: "Withdraw request approved",
           link: "/funds",
-          payload: { transactionId: nextTxId, amount },
+          payload: { amount },
         });
         await createNotification({
           recipientType: "admin",

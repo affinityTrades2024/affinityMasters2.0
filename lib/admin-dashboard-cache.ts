@@ -11,6 +11,7 @@ export interface AdminDashboardData {
   totalProfitGiven: number;
   totalWithdrawals: number;
   activeInterestAccounts: number;
+  totalPendingDisbursalUsd: number;
   updatedAt: string;
 }
 
@@ -160,6 +161,16 @@ async function sumDailyInterestForDate(date: string): Promise<number> {
   return total;
 }
 
+/** Sum pending disbursal amounts (partial withdrawal remainders) across all users */
+async function sumPendingDisbursalUsd(): Promise<number> {
+  const { data } = await supabase
+    .from("pending_disbursal_entries")
+    .select("amount_usd")
+    .eq("status", "pending");
+  const rows = data ?? [];
+  return rows.reduce((s: number, r: { amount_usd?: number }) => s + Number(r.amount_usd ?? 0), 0);
+}
+
 /** Fetch fresh data from DB, store in cache, return it */
 export async function refreshAdminDashboard(): Promise<AdminDashboardData> {
   const today = new Date().toISOString().slice(0, 10);
@@ -174,12 +185,14 @@ export async function refreshAdminDashboard(): Promise<AdminDashboardData> {
   const totalBusiness = accounts.reduce((sum, r) => sum + r.balance, 0);
   const activeInterestAccounts = accounts.filter((r) => r.interest_credit_enabled).length;
 
-  const [dailyProfitGiven, totalProfitGiven, totalDeposits, totalWithdrawals] = await Promise.all([
-    sumDailyInterestForDate(today),
-    sumAllDailyInterest(),
-    sumDepositsToAccountIds(depositDestinationAccountIds),
-    sumWithdrawalsFromAccountIds(ourAccountIds),
-  ]);
+  const [dailyProfitGiven, totalProfitGiven, totalDeposits, totalWithdrawals, totalPendingDisbursalUsd] =
+    await Promise.all([
+      sumDailyInterestForDate(today),
+      sumAllDailyInterest(),
+      sumDepositsToAccountIds(depositDestinationAccountIds),
+      sumWithdrawalsFromAccountIds(ourAccountIds),
+      sumPendingDisbursalUsd(),
+    ]);
 
   const data: AdminDashboardData = {
     totalDeposits,
@@ -190,6 +203,7 @@ export async function refreshAdminDashboard(): Promise<AdminDashboardData> {
     totalProfitGiven,
     totalWithdrawals,
     activeInterestAccounts,
+    totalPendingDisbursalUsd,
     updatedAt: new Date().toISOString(),
   };
 
