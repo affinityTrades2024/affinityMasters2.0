@@ -201,66 +201,70 @@ export async function getTransactionsForClient(clientId: number): Promise<{
   transactions: RawTransactionRow[];
   accountIds: number[];
 }> {
-  // Step 1 – Primary: all transactions where client_id = this user (no limit; paginate to get all)
-  const primary: RawTransactionRow[] = [];
   const pageSize = 1000;
+
+  // Step 1 – Get user's account IDs: investment accounts (type = 'investment' or type IS NULL or product = 'PAMM Investor' or 'eWallet'), plus pamm_master.id for this client.
+  const myAccountIds: number[] = [];
   let from = 0;
+  while (true) {
+    const { data } = await supabase
+      .from("accounts")
+      .select("account_id")
+      .eq("client_id", clientId)
+      .or("type.eq.investment,type.is.null,product.eq.PAMM Investor,product.eq.eWallet")
+      .range(from, from + pageSize - 1);
+    if (!data?.length) break;
+    for (const r of data) {
+      const id = Number((r as { account_id: number }).account_id);
+      if (Number.isFinite(id)) myAccountIds.push(id);
+    }
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  const { data: pammData } = await supabase
+    .from("pamm_master")
+    .select("id")
+    .eq("client_id", clientId);
+  for (const r of pammData ?? []) {
+    const id = Number((r as { id: number }).id);
+    if (Number.isFinite(id)) myAccountIds.push(id);
+  }
+
+  if (myAccountIds.length === 0) {
+    return { transactions: [], accountIds: [] };
+  }
+
+  // Step 2 – Fetch ALL transactions where source_account_id or destination_account_id is in myAccountIds (paginated).
+  // Use deterministic order (operation_date desc, id desc) so pagination does not skip/duplicate rows when dates tie.
+  const idStr = myAccountIds.join(",");
+  const all: RawTransactionRow[] = [];
+  from = 0;
   while (true) {
     const { data: chunk } = await supabase
       .from("transactions")
       .select("*")
-      .eq("client_id", clientId)
+      .or(`source_account_id.in.(${idStr}),destination_account_id.in.(${idStr})`)
       .order("operation_date", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, from + pageSize - 1);
     if (!chunk?.length) break;
-    primary.push(...(chunk as RawTransactionRow[]));
+    all.push(...(chunk as RawTransactionRow[]));
     if (chunk.length < pageSize) break;
     from += pageSize;
   }
 
-  const seenIds = new Set(primary.map((r) => r.id));
+  // Step 3 – Deduplicate by transaction id and sort by operation_date descending.
+  const seenIds = new Set<number>();
+  const transactions = all.filter((r) => {
+    if (seenIds.has(r.id)) return false;
+    seenIds.add(r.id);
+    return true;
+  });
+  transactions.sort((a, b) =>
+    (b.operation_date || "").localeCompare(a.operation_date || "")
+  );
 
-  // Step 2 – Destination IDs for extra fee query: pamm_master.id + accounts.account_id for this client (never account_number).
-  const myDestinationIds = new Set<number>();
-  const [pammRes, accountRes] = await Promise.all([
-    supabase.from("pamm_master").select("id").eq("client_id", clientId),
-    supabase.from("accounts").select("account_id").eq("client_id", clientId),
-  ]);
-  for (const r of pammRes.data ?? []) {
-    if (r.id != null) myDestinationIds.add(Number(r.id));
-  }
-  for (const r of accountRes.data ?? []) {
-    if (r.account_id != null) myDestinationIds.add(Number(r.account_id));
-  }
-
-  // Step 3 – Extra: fee transactions where destination is one of my PAMM ids (cap 100 ids, limit 500)
-  const merged: RawTransactionRow[] = [...primary];
-  if (myDestinationIds.size > 0) {
-    const destList = Array.from(myDestinationIds).slice(0, 100);
-    const { data: feeExtra } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("type", "fees")
-      .in("destination_account_id", destList)
-      .order("operation_date", { ascending: false })
-      .limit(500);
-    for (const row of feeExtra || []) {
-      const id = Number(row.id);
-      const destId = row.destination_account_id != null ? Number(row.destination_account_id) : null;
-      if (!seenIds.has(id) && destId != null && myDestinationIds.has(destId)) {
-        seenIds.add(id);
-        merged.push(row as RawTransactionRow);
-      }
-    }
-  }
-
-  merged.sort((a, b) => (b.operation_date || "").localeCompare(a.operation_date || ""));
-
-  const accountIds = Array.from(myDestinationIds);
-  return {
-    transactions: merged,
-    accountIds,
-  };
+  return { transactions, accountIds: myAccountIds };
 }
 
 export function toDisplayTransactions(
