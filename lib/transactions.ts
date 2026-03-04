@@ -11,6 +11,8 @@ export interface AccountMapEntry {
 
 function normalizeDbType(type: string): string {
   const t = (type || "").toLowerCase().trim();
+  if (t === "deposit_by_admin") return "deposit";
+  if (t === "withdrawal_by_admin") return "withdrawal";
   if (t === "payout") return "withdrawal";
   if (t === "pending_disbursal_settlement") return "withdrawal";
   if (["rewards", "fee", "fees", "performance_fee"].includes(t)) return "fees";
@@ -285,7 +287,7 @@ export async function getWithdrawalToAccountMap(
   const withdrawalIds = transactionRows
     .filter((r) => {
       const t = (r.type || "").toLowerCase().trim();
-      return t === "withdrawal" || t === "payout";
+      return t === "withdrawal" || t === "withdrawal_by_admin" || t === "payout";
     })
     .map((r) => r.id);
   const settlementIds = transactionRows
@@ -403,13 +405,19 @@ export function toDisplayTransactions(
     const srcId = r.source_account_id;
     let creditAcc = resolveAccount(destId, byId);
     const debitAcc = resolveAccount(srcId, byId);
+    const rawType = (r.type || "").toLowerCase().trim();
     const normalizedType = normalizeDbType(r.type);
-    const displayType = reclassifyFees(
+    let displayType = reclassifyFees(
       normalizedType,
       creditAcc.accountNumber,
       debitAcc.accountNumber,
       selfAccountNumbers
     );
+    if (rawType === "deposit_by_admin") {
+      displayType = "Deposit by Admin";
+    } else if (rawType === "withdrawal_by_admin") {
+      displayType = "Withdrawal by Admin";
+    }
     // For withdrawal/payout: if we have bank account from withdrawal request, use it for To Account; else "Self Bank Account"
     if ((normalizedType === "withdrawal" || normalizedType === "payout") && withdrawalToAccount?.has(r.id)) {
       creditAcc = withdrawalToAccount.get(r.id)!;

@@ -25,7 +25,14 @@ const navItems: Array<
   | { label: string; icon: React.ComponentType<{ className?: string }>; children: { href: string; label: string }[] }
 > = [
   { href: "/manage", label: "Dashboard", icon: BiBarChartAlt2, exact: true },
-  { href: "/manage/pamm", label: "Investment accounts", icon: BiBox },
+  {
+    label: "Investment accounts",
+    icon: BiBox,
+    children: [
+      { href: "/manage/pamm", label: "All Accounts" },
+      { href: "/manage/pamm/deposit-withdrawal-request", label: "Deposit/Withdrawal Request" },
+    ],
+  },
   {
     label: "Profit Sharing",
     icon: BiPieChartAlt2,

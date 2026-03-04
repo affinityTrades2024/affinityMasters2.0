@@ -26,7 +26,7 @@ export async function GET() {
   const { data: requests, error } = await supabase
     .from("funds_requests")
     .select(
-      "id, client_id, type, account_id, amount_usd, amount_inr, status, requested_at, is_auto_withdrawal"
+      "id, client_id, type, account_id, amount_usd, amount_inr, status, requested_at, is_auto_withdrawal, is_admin_initiated"
     )
     .eq("status", "pending")
     .order("requested_at", { ascending: true });
@@ -73,6 +73,7 @@ export async function GET() {
     amountInr: Number(r.amount_inr),
     requestedAt: r.requested_at,
     isAutoWithdrawal: Boolean(r.is_auto_withdrawal),
+    isAdminInitiated: Boolean((r as { is_admin_initiated?: boolean }).is_admin_initiated),
   }));
 
   return NextResponse.json({ requests: list });
@@ -119,7 +120,7 @@ export async function PATCH(request: Request) {
       try {
         const { data: row, error: fetchError } = await supabase
           .from("funds_requests")
-          .select("id, client_id, type, account_id, amount_usd, status")
+          .select("id, client_id, type, account_id, amount_usd, status, is_admin_initiated")
           .eq("id", bid)
           .single();
 
@@ -181,10 +182,11 @@ export async function PATCH(request: Request) {
         const operationDate = new Date().toISOString().slice(0, 10);
 
         if (row.type === "deposit") {
+          const txType = row.is_admin_initiated ? "deposit_by_admin" : "deposit";
           const { error: txError } = await supabase.from("transactions").insert({
             id: nextTxId,
             client_id: clientId,
-            type: "deposit",
+            type: txType,
             source_account_id: MASTER_ACCOUNT_ID,
             destination_account_id: accountId,
             source_amount: amount,
@@ -287,7 +289,7 @@ export async function PATCH(request: Request) {
 
   const { data: row, error: fetchError } = await supabase
     .from("funds_requests")
-    .select("id, client_id, type, account_id, amount_usd, status")
+    .select("id, client_id, type, account_id, amount_usd, status, is_admin_initiated")
     .eq("id", id)
     .single();
 
@@ -323,10 +325,11 @@ export async function PATCH(request: Request) {
 
     const nextTxId = await getNextTransactionId();
     const operationDate = new Date().toISOString().slice(0, 10);
+    const txType = row.is_admin_initiated ? "withdrawal_by_admin" : "withdrawal";
     const { error: txError } = await supabase.from("transactions").insert({
       id: nextTxId,
       client_id: clientId,
-      type: "withdrawal",
+      type: txType,
       source_account_id: accountId,
       destination_account_id: MASTER_ACCOUNT_ID,
       source_amount: amountUsd,
@@ -465,10 +468,11 @@ export async function PATCH(request: Request) {
 
     const nextTxId = await getNextTransactionId();
     const operationDate = new Date().toISOString().slice(0, 10);
+    const txType = row.is_admin_initiated ? "withdrawal_by_admin" : "withdrawal";
     const { error: txError } = await supabase.from("transactions").insert({
       id: nextTxId,
       client_id: clientId,
-      type: "withdrawal",
+      type: txType,
       source_account_id: accountId,
       destination_account_id: MASTER_ACCOUNT_ID,
       source_amount: disbursedUsd,
@@ -599,10 +603,11 @@ export async function PATCH(request: Request) {
     const operationDate = new Date().toISOString().slice(0, 10);
 
     if (row.type === "deposit") {
+      const txType = row.is_admin_initiated ? "deposit_by_admin" : "deposit";
       const { error: txError } = await supabase.from("transactions").insert({
         id: nextTxId,
         client_id: clientId,
-        type: "deposit",
+        type: txType,
         source_account_id: MASTER_ACCOUNT_ID,
         destination_account_id: accountId,
         source_amount: amount,
